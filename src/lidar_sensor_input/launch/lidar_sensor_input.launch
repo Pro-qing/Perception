@@ -1,0 +1,15 @@
+<launch>
+    <!-- 1. 定义一个参数 calib_file，并设置你的默认绝对路径 -->
+    <arg name="calib_file" default="/home/getq/perception/workspace/param/lidar_calibration.yaml" />
+
+    <!-- 启动 Sensor Input 节点 -->
+    <node pkg="lidar_sensor_input" type="sensor_input_node" name="lidar_sensor_input_node" output="screen">
+        
+        <!-- 2. 使用 $(arg calib_file) 读取绝对路径中的 yaml 文件 -->
+        <rosparam command="load" file="$(arg calib_file)" />
+
+        <!-- 可以在这里重映射话题名称，如果你的外部雷达话题名字不同 -->
+        <!-- <remap from="/points_16" to="/ns1/velodyne_points" /> -->
+        
+    </node>
+</launch>
