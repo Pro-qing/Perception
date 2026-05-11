@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   laser_geometry
   tf2_ros
   tf2_geometry_msgs
+  autoware_msgs
 )
 
 ## 指定 PCL 依赖
@@ -45,3 +46,6 @@ install(DIRECTORY launch/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
 
+install(DIRECTORY param/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/param
+)

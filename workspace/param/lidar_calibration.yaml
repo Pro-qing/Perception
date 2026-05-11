@@ -1,11 +1,40 @@
-# 最终输出的统一坐标系
+# workspace/param/lidar_calibration.yaml
 parent_frame: "base_link" 
 
+# 话题名称配置
+topics:
+  main: "/points_16"
+  mid: "/points_mid"
+  left: "/scan_left"
+  right: "/scan_right"
+  output: "/points_raw"
+  waypoint: "/lqr_targetwayp"
+
 calibration:
-  # 主雷达 (Main) 标定到 base_link (即 velodyne 相对于 base_link 的位置)
   main:  {x: 0.0, y: 0.0, z: 2.0, roll: 0.0, pitch: 0.0, yaw: 0.0}
-  
-  # 其他雷达标定到 velodyne (即它们相对于主雷达的位置)
   mid:   {x: 1.0, y: 0.0, z: -0.5, roll: 0.0, pitch: 0.0, yaw: 0.0}
   left:  {x: 0.5, y: 1.0, z: -1.5, roll: 0.0, pitch: 0.0, yaw: 1.5708}
   right: {x: 0.5, y: -1.0, z: -1.5, roll: 0.0, pitch: 0.0, yaw: -1.5708}
+
+# 行为模式配置 (key 对应 Waypoint.lane_id 的行为 ID)
+# 默认行为 ID（未匹配到特定模式时使用）
+default_behavior: &default_behavior
+  main: true
+  mid: true
+  left: true
+  right: true
+
+behaviors:
+  "0": *default_behavior
+  "1": *default_behavior
+  "2": *default_behavior
+  "3":   # 电梯模式
+    main: true
+    mid: true
+    left: false
+    right: false
+  "4":   # 坡道模式
+    main: true
+    mid: true
+    left: false
+    right: false

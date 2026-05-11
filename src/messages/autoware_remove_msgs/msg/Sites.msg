@@ -1,0 +1,2 @@
+CoorDinate coordinate
+TriggerType trigger_type
