@@ -171,7 +171,11 @@ private:
 
     // ============== Waypoint 回调：行为模式切换 ==============
     void lqrWaypointCallback(const autoware_msgs::Waypoint::ConstPtr& msg) {
-        int behavior_id = static_cast<int>(msg->lane_id);
+        if (msg->wpsattr.routeBehavior.empty()) {
+            ROS_WARN_THROTTLE(5.0, "[Sensor Input] routeBehavior is empty, skipping.");
+            return;
+        }
+        int behavior_id = static_cast<int>(msg->wpsattr.routeBehavior[0]);
 
         if (behavior_id == current_behavior_id_) {
             return; // 行为未变化，不做处理
