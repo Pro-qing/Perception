@@ -1,0 +1,4 @@
+lidar_downsample_node:
+  input_topic: "/points_raw"
+  output_topic: "/points_downsampled"
+  voxel_leaf_size: 0.1

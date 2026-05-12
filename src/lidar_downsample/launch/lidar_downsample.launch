@@ -1,0 +1,8 @@
+<launch>
+  <!-- 加载降采样参数 -->
+  <arg name="param_file" default="$(find lidar_downsample)/../../workspace/param/downsample.yaml"/>
+  <rosparam command="load" file="$(arg param_file)" ns="lidar_downsample_node"/>
+
+  <!-- 启动降采样节点 -->
+  <node pkg="lidar_downsample" type="lidar_downsample_node" name="lidar_downsample_node" output="screen"/>
+</launch>
