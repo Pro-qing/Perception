@@ -46,6 +46,10 @@ public:
 
         // ---- 发布者 ----
         pub_points_raw_ = nh_.advertise<PointCloud2>(topic_output_, 10);
+        pub_main_calib_  = nh_.advertise<PointCloud2>("/points_main_calibration", 10);
+        pub_mid_calib_   = nh_.advertise<PointCloud2>("/points_mid_calibration", 10);
+        pub_left_calib_  = nh_.advertise<PointCloud2>("/points_left_calibration", 10);
+        pub_right_calib_ = nh_.advertise<PointCloud2>("/points_right_calibration", 10);
 
         // ---- 订阅者 + 四路时间同步 ----
         sub_16_   = new Subscriber<PointCloud2>(nh_, topic_main_,  1, ros::TransportHints().tcpNoDelay());
@@ -77,6 +81,7 @@ private:
     std::string parent_frame_;
     laser_geometry::LaserProjection projector_;
     ros::Publisher pub_points_raw_;
+    ros::Publisher pub_main_calib_, pub_mid_calib_, pub_left_calib_, pub_right_calib_;
 
     // 话题名称（从 YAML 读取）
     std::string topic_main_, topic_mid_, topic_left_, topic_right_;
@@ -214,6 +219,19 @@ private:
         pcl::transformPointCloud(raw_pcl, *out_cloud, transform);
     }
 
+    // ============== 发布标定后的单路点云 ==============
+    void publishCalibratedCloud(const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud,
+                                const ros::Time& stamp, const ros::Publisher& pub) {
+        if (cloud->empty() || pub.getNumSubscribers() == 0) {
+            return;
+        }
+        PointCloud2 output_msg;
+        pcl::toROSMsg(*cloud, output_msg);
+        output_msg.header.stamp    = stamp;
+        output_msg.header.frame_id = parent_frame_;
+        pub.publish(output_msg);
+    }
+
     // ============== 四路同步回调 ==============
     void syncCallback(const PointCloud2::ConstPtr& msg_16,
                       const PointCloud2::ConstPtr& msg_mid,
@@ -227,24 +245,28 @@ private:
             pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_main(new pcl::PointCloud<pcl::PointXYZI>());
             processCloud(msg_16, trans_main_, cloud_main);
             *merged_cloud += *cloud_main;
+            publishCalibratedCloud(cloud_main, msg_16->header.stamp, pub_main_calib_);
         }
 
         if (sensor_enabled_["mid"]) {
             pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_mid(new pcl::PointCloud<pcl::PointXYZI>());
             processCloud(msg_mid, trans_mid_, cloud_mid);
             *merged_cloud += *cloud_mid;
+            publishCalibratedCloud(cloud_mid, msg_mid->header.stamp, pub_mid_calib_);
         }
 
         if (sensor_enabled_["left"]) {
             pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_left(new pcl::PointCloud<pcl::PointXYZI>());
             processScan(msg_left, trans_left_, cloud_left);
             *merged_cloud += *cloud_left;
+            publishCalibratedCloud(cloud_left, msg_left->header.stamp, pub_left_calib_);
         }
 
         if (sensor_enabled_["right"]) {
             pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_right(new pcl::PointCloud<pcl::PointXYZI>());
             processScan(msg_right, trans_right_, cloud_right);
             *merged_cloud += *cloud_right;
+            publishCalibratedCloud(cloud_right, msg_right->header.stamp, pub_right_calib_);
         }
 
         if (merged_cloud->empty()) {
