@@ -4,8 +4,10 @@
 std_msgs/Header header
 
 # 控制状态
+string vehicle_id                  #车体ID
 int8 mode                  # 0:待机, 1:自动, 2:手动, 3:急停
-int8 state                  #车体状态
+int8 vehicle_state                  #车体状态
+string vehicle_descr        #车体状态描述
 float32 speed               # 速度 m/s
 float32 steering_angle      # 转向角 rad
 float32 acceleration        # 加速度 m/s²

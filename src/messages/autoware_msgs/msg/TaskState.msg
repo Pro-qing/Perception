@@ -3,6 +3,7 @@ Header header
 # 任务基本信息
 string task_id                     # 任务唯一标识 (UUID或任务编号)
 uint8 task_state                   # 任务执行状态 (枚举见下)
+string task_descr                  #任务状态描述
 uint8 task_type                    # 任务类型 (枚举见下)
 string state_message              # 状态文字描述
 
