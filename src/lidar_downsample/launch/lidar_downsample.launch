@@ -1,8 +1,15 @@
 <launch>
-  <!-- 加载降采样参数 -->
-  <arg name="param_file" default="$(find lidar_downsample)/../../workspace/param/downsample.yaml"/>
-  <rosparam command="load" file="$(arg param_file)" ns="lidar_downsample_node"/>
+    <!-- 定义参数文件路径 -->
+    <arg name="param_file" default="/home/getq/perception/workspace/param/downsample.yaml" />
 
-  <!-- 启动降采样节点 -->
-  <node pkg="lidar_downsample" type="lidar_downsample_node" name="lidar_downsample_node" output="screen"/>
+    <!-- 启动 LidarDownsample 节点 -->
+    <node pkg="lidar_downsample" type="lidar_downsample_node" name="lidar_downsample_node" output="screen">
+
+        <!-- 加载降采样参数 -->
+        <rosparam command="load" file="$(arg param_file)" />
+
+        <!-- 可选: 重映射输入话题 (如果 /points_raw 话题名称不同) -->
+        <!-- <remap from="/points_raw" to="/your_custom_input_topic" /> -->
+
+    </node>
 </launch>

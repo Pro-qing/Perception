@@ -1,4 +1,45 @@
-lidar_downsample_node:
-  input_topic: "/points_raw"
-  output_topic: "/points_downsampled"
-  voxel_leaf_size: 0.1
+# workspace/param/downsample.yaml
+
+# 输入话题 (来自 lidar_sensor_input 发布的合并点云)
+input_topic: "/points_raw"
+
+# 输出话题 (降采样后的点云)
+output_topic: "/points_downsampled"
+
+# VoxelGrid 体素滤波参数
+voxel_grid:
+  # 体素大小 (米) - 值越大降采样越激进，点云越稀疏
+  leaf_size_x: 0.1
+  leaf_size_y: 0.1
+  leaf_size_z: 0.1
+
+  # 每个体素中保留的最小点数 (低于此值的体素将被丢弃)
+  min_points_per_voxel: 1
+
+  # 是否对所有字段 (强度、颜色等) 进行降采样，而非仅 XYZ
+  # true: 所有字段都会被降采样
+  # false: 仅对 XYZ 坐标降采样
+  downsample_all_data: true
+
+# 可选: 裁剪框 (CropBox) 参数 - 在降采样前裁剪点云范围
+# 如果不需要裁剪，请将 enable 设为 false
+crop_box:
+  enable: false
+  # 裁剪范围 (相对于 base_link, 单位: 米)
+  min_x: -50.0
+  max_x: 50.0
+  min_y: -50.0
+  max_y: 50.0
+  min_z: -3.0
+  max_z: 3.0
+
+  # 是否反转裁剪 (true: 保留框外的点, false: 保留框内的点)
+  negative: false
+
+# 可选: 高度过滤参数 - 基于 z 轴过滤点云
+# 如果不需要高度过滤，请将 enable 设为 false
+height_filter:
+  enable: false
+  # 保留的高度范围 (单位: 米)
+  min_height: -2.0
+  max_height: 2.0

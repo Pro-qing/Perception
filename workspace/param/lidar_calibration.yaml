@@ -11,10 +11,10 @@ topics:
   waypoint: "/lqr_targetwayp"
 
 calibration:
-  main:  {x: 0.0, y: 0.0, z: 2.0, roll: 0.0, pitch: 0.0, yaw: 0.0}
-  mid:   {x: 1.0, y: 0.0, z: -0.5, roll: 0.0, pitch: 0.0, yaw: 0.0}
-  left:  {x: 0.5, y: 1.0, z: -1.5, roll: 0.0, pitch: 0.0, yaw: 1.5708}
-  right: {x: 0.5, y: -1.0, z: -1.5, roll: 0.0, pitch: 0.0, yaw: -1.5708}
+  main:  {x: 0.986, y: -0.01, z: 1.8, roll: 0.0, pitch: 0.0, yaw: -0.03}
+  mid:   {x: 0.183, y: -0.004, z: -0.36, roll: -0.027, pitch: 2.9534, yaw: 3.098}
+  left:  {x: 0.22, y: 0.33, z: -1.8, roll: 3.1415926, pitch: 0.0, yaw: -2.08}
+  right: {x: 0.21, y: -0.36, z: -1.8, roll: 3.1415926, pitch: 0.0, yaw: 2.17}
 
 # 行为模式配置 (key 对应 Waypoint.lane_id 的行为 ID)
 # 默认行为 ID（未匹配到特定模式时使用）
