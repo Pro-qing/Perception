@@ -21,22 +21,22 @@ voxel_grid:
   # false: 仅对 XYZ 坐标降采样
   downsample_all_data: true
 
-# 可选: 裁剪框 (CropBox) 参数 - 在降采样前裁剪点云范围
+# 裁剪框 (CropBox) 参数 - 在降采样前裁剪点云范围
 # 如果不需要裁剪，请将 enable 设为 false
 crop_box:
-  enable: false
+  enable: true
   # 裁剪范围 (相对于 base_link, 单位: 米)
-  min_x: -50.0
-  max_x: 50.0
-  min_y: -50.0
-  max_y: 50.0
-  min_z: -3.0
-  max_z: 3.0
+  min_x: -2.0
+  max_x: 7.0
+  min_y: -3.0
+  max_y: 3.0
+  min_z: -2.0
+  max_z: 0.0
 
   # 是否反转裁剪 (true: 保留框外的点, false: 保留框内的点)
   negative: false
 
-# 可选: 高度过滤参数 - 基于 z 轴过滤点云
+# 高度过滤参数 - 基于 z 轴过滤点云
 # 如果不需要高度过滤，请将 enable 设为 false
 height_filter:
   enable: false
