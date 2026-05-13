@@ -37,6 +37,16 @@ public:
         // ---- 加载标定参数并计算变换矩阵 ----
         loadCalibrationParams();
 
+        // ---- 加载单线雷达距离过滤半径 ----
+        pnh_.param<double>("filter_radius/left",  filter_radius_left_,  0.0);
+        pnh_.param<double>("filter_radius/right", filter_radius_right_, 0.0);
+        if (filter_radius_left_ > 0.0) {
+            ROS_INFO("\033[1;34m[Sensor Input] Left filter radius: %.2f m\033[0m", filter_radius_left_);
+        }
+        if (filter_radius_right_ > 0.0) {
+            ROS_INFO("\033[1;34m[Sensor Input] Right filter radius: %.2f m\033[0m", filter_radius_right_);
+        }
+
         // ---- 加载行为模式配置 ----
         loadBehaviorConfigs();
 
@@ -119,6 +129,9 @@ private:
     // 当前传感器启用状态
     std::map<std::string, bool> sensor_enabled_;
     int current_behavior_id_;
+
+    // 单线雷达距离过滤半径（米），0 表示不过滤
+    double filter_radius_left_, filter_radius_right_;
 
     // ============== 加载标定参数 ==============
     void loadCalibrationParams() {
@@ -295,6 +308,21 @@ private:
         pcl::transformPointCloud(raw_pcl, *out_cloud, transform);
     }
 
+    // 按半径过滤点云，保留距离原点小于 max_radius 的点
+    void filterByRadius(pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud, double max_radius) {
+        pcl::PointCloud<pcl::PointXYZI>::Ptr filtered(new pcl::PointCloud<pcl::PointXYZI>());
+        double max_radius_sq = max_radius * max_radius;
+        for (const auto& pt : cloud->points) {
+            if (pt.x * pt.x + pt.y * pt.y + pt.z * pt.z <= max_radius_sq) {
+                filtered->points.push_back(pt);
+            }
+        }
+        filtered->width = filtered->points.size();
+        filtered->height = 1;
+        filtered->is_dense = true;
+        cloud = filtered;
+    }
+
     void processCloud(const PointCloud2::ConstPtr& cloud_msg, const Eigen::Affine3f& transform,
                       pcl::PointCloud<pcl::PointXYZI>::Ptr& out_cloud) {
         pcl::PointCloud<pcl::PointXYZI> raw_pcl;
@@ -341,15 +369,25 @@ private:
         if (sensor_enabled_["left"]) {
             pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_left(new pcl::PointCloud<pcl::PointXYZI>());
             processScan(msg_left, trans_left_, cloud_left);
-            *merged_cloud += *cloud_left;
+            // 先发布标定后的完整点云
             publishCalibratedCloud(cloud_left, msg_left->header.stamp, pub_left_calib_);
+            // 再对合并用的点云做距离过滤
+            if (filter_radius_left_ > 0.0) {
+                filterByRadius(cloud_left, filter_radius_left_);
+            }
+            *merged_cloud += *cloud_left;
         }
 
         if (sensor_enabled_["right"]) {
             pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_right(new pcl::PointCloud<pcl::PointXYZI>());
             processScan(msg_right, trans_right_, cloud_right);
-            *merged_cloud += *cloud_right;
+            // 先发布标定后的完整点云
             publishCalibratedCloud(cloud_right, msg_right->header.stamp, pub_right_calib_);
+            // 再对合并用的点云做距离过滤
+            if (filter_radius_right_ > 0.0) {
+                filterByRadius(cloud_right, filter_radius_right_);
+            }
+            *merged_cloud += *cloud_right;
         }
 
         if (merged_cloud->empty()) {

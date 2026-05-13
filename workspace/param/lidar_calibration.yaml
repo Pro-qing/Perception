@@ -16,6 +16,11 @@ calibration:
   left:  {x: 0.22, y: 0.33, z: -1.8, roll: 3.1415926, pitch: 0.0, yaw: -2.08}
   right: {x: 0.21, y: -0.36, z: -1.8, roll: 3.1415926, pitch: 0.0, yaw: 2.17}
 
+# 单线雷达距离过滤半径（米），超过该距离的点将被丢弃。设为 0 表示不过滤。
+filter_radius:
+  left:  1.0
+  right: 1.0
+
 # 行为模式配置 (key 对应 Waypoint.lane_id 的行为 ID)
 # 默认行为 ID（未匹配到特定模式时使用）
 default_behavior: &default_behavior
