@@ -1,0 +1,15 @@
+<launch>
+    <!-- 定义参数文件路径 -->
+    <arg name="param_file" default="/home/getq/perception/workspace/param/euclidean_cluster.yaml" />
+
+    <!-- 启动 Euclidean Cluster Detector 节点 -->
+    <node pkg="lidar_euclidean_cluster_detector" type="lidar_euclidean_cluster_detector_node" name="lidar_euclidean_cluster_detector_node" output="screen">
+
+        <!-- 加载聚类参数 -->
+        <rosparam command="load" file="$(arg param_file)" />
+
+        <!-- 可选: 重映射输入话题 (如果 /lidar_no_ground 话题名称不同) -->
+        <!-- <remap from="/lidar_no_ground" to="/your_custom_input_topic" /> -->
+
+    </node>
+</launch>

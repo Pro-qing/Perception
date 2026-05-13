@@ -1,0 +1,27 @@
+# =====================================================
+#  Euclidean Cluster Detector 参数配置
+# =====================================================
+
+# 话题参数
+input_topic: /lidar_no_ground
+cloud_clusters_topic: /detection/lidar_detector/cloud_clusters
+objects_topic: /detection/lidar_detector/objects
+
+# Euclidean 聚类参数
+cluster_tolerance: 0.8        # 同一簇中两点之间最大距离 (米)
+min_cluster_size: 10          # 最小簇点数 (过滤噪声)
+max_cluster_size: 5000        # 最大簇点数 (过滤过大簇)
+
+# KD-Tree 搜索参数
+kdtree_eps: 0.0               # 近邻搜索精度 (0.0 表示精确搜索)
+
+# 障碍物过滤参数
+obstacle_filter:
+  enable: true
+  min_height: -2.0            # 障碍物最小高度 (米)
+  max_height: 3.0             # 障碍物最大高度 (米)
+  min_width: 0.2              # 障碍物最小宽度 (米)
+  max_width: 50.0             # 障碍物最大宽度 (米)
+  min_length: 0.2             # 障碍物最小长度 (米)
+  max_length: 50.0            # 障碍物最大长度 (米)
+  max_distance: 150.0         # 障碍物距离阈值 (米)
