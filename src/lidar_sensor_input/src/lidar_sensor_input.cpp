@@ -107,8 +107,10 @@ private:
     typedef sync_policies::ApproximateTime<PointCloud2, PointCloud2, LaserScan, LaserScan> SyncPolicy;
     Synchronizer<SyncPolicy>* sync_;
 
-    // 变换矩阵
+    // 变换矩阵 (相对于 velodyne 坐标系)
     Eigen::Affine3f trans_main_, trans_mid_, trans_left_, trans_right_;
+    // base_link → velodyne 变换
+    Eigen::Affine3f base_to_velo_;
 
     // 行为模式：每个行为 ID 对应各传感器开关
     // key: 行为ID (字符串), value: map<传感器名, 是否启用>
@@ -120,23 +122,59 @@ private:
 
     // ============== 加载标定参数 ==============
     void loadCalibrationParams() {
+        // main 雷达是 velodyne，标定参数 (calibration/main) 描述 velodyne 相对于 base_link 的位姿
+        // 其它雷达的标定参数 (calibration/mid/left/right) 描述相对 velodyne 的变换
+        // 最终点云统一发布到 velodyne 坐标系下
         Eigen::Affine3f trans_main_to_base  = getTransformFromParam("calibration/main");
         Eigen::Affine3f trans_mid_to_velo   = getTransformFromParam("calibration/mid");
         Eigen::Affine3f trans_left_to_velo  = getTransformFromParam("calibration/left");
         Eigen::Affine3f trans_right_to_velo = getTransformFromParam("calibration/right");
 
-        trans_main_  = trans_main_to_base;
-        trans_mid_   = trans_main_to_base * trans_mid_to_velo;
-        trans_left_  = trans_main_to_base * trans_left_to_velo;
-        trans_right_ = trans_main_to_base * trans_right_to_velo;
+        // main (velodyne) 本身就在 velodyne 坐标系，不需要变换
+        trans_main_  = Eigen::Affine3f::Identity();
+        // mid/left/right 的标定参数是相对于 velodyne 的，直接使用
+        trans_mid_   = trans_mid_to_velo;
+        trans_left_  = trans_left_to_velo;
+        trans_right_ = trans_right_to_velo;
 
-        ROS_INFO("\033[1;34m[Sensor Input] Calibration matrices loaded & chained successfully.\033[0m");
+        // base_link → velodyne 变换，用于发布 TF
+        base_to_velo_ = trans_main_to_base;
+
+        ROS_INFO("\033[1;34m[Sensor Input] Calibration matrices loaded. All points will be in velodyne frame.\033[0m");
     }
 
-    // ============== 发布 4 个雷达的静态 TF ==============
+    // ============== 发布静态 TF ==============
+    // TF 树: base_link → velodyne → lidar_main / lidar_mid / lidar_left / lidar_right
     void publishSensorTF() {
         std::vector<geometry_msgs::TransformStamped> transforms;
 
+        // 1. base_link → velodyne (来自 calibration/main)
+        {
+            geometry_msgs::TransformStamped ts;
+            ts.header.stamp = ros::Time::now();
+            ts.header.frame_id = "base_link";
+            ts.child_frame_id = "velodyne";
+
+            Eigen::Vector3f pos = base_to_velo_.translation();
+            ts.transform.translation.x = pos.x();
+            ts.transform.translation.y = pos.y();
+            ts.transform.translation.z = pos.z();
+
+            Eigen::Matrix3f rot = base_to_velo_.rotation();
+            Eigen::Quaternionf quat(rot);
+            ts.transform.rotation.x = quat.x();
+            ts.transform.rotation.y = quat.y();
+            ts.transform.rotation.z = quat.z();
+            ts.transform.rotation.w = quat.w();
+
+            transforms.push_back(ts);
+
+            ROS_INFO("\033[1;36m[Sensor Input] TF: base_link -> velodyne [%+.2f, %+.2f, %+.2f]\033[0m",
+                     pos.x(), pos.y(), pos.z());
+        }
+
+        // 2. velodyne → lidar_main (Identity, main 就是 velodyne)
+        // 3. velodyne → lidar_mid / lidar_left / lidar_right
         std::vector<std::pair<std::string, Eigen::Affine3f>> sensor_transforms = {
             {"lidar_main",  trans_main_},
             {"lidar_mid",   trans_mid_},
@@ -147,7 +185,7 @@ private:
         for (const auto& kv : sensor_transforms) {
             geometry_msgs::TransformStamped ts;
             ts.header.stamp = ros::Time::now();
-            ts.header.frame_id = parent_frame_;
+            ts.header.frame_id = "velodyne";
             ts.child_frame_id = kv.first;
 
             Eigen::Vector3f pos = kv.second.translation();
@@ -164,8 +202,8 @@ private:
 
             transforms.push_back(ts);
 
-            ROS_INFO("\033[1;36m[Sensor Input] TF: %s -> %s [%+.2f, %+.2f, %+.2f]\033[0m",
-                     parent_frame_.c_str(), kv.first.c_str(), pos.x(), pos.y(), pos.z());
+            ROS_INFO("\033[1;36m[Sensor Input] TF: velodyne -> %s [%+.2f, %+.2f, %+.2f]\033[0m",
+                     kv.first.c_str(), pos.x(), pos.y(), pos.z());
         }
 
         static_broadcaster_.sendTransform(transforms);

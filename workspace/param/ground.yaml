@@ -12,14 +12,14 @@ ground_topic: "/lidar_ground"          # 纯地面点云
 # ---- Ray Ground Filter 参数 ----
 
 # 传感器安装高度 (相对于地面, 单位: 米)
-# 即 base_link 坐标系原点到地面的垂直距离
-# 注意: base_link 原点通常在车辆底部, 如果原点在地面, sensor_height 设为 0
-sensor_height: 0.5
+# 即 velodyne 坐标系原点到地面的垂直距离
+# 注意: velodyne 原点通常在车辆底部, 如果原点在地面, sensor_height 设为 0
+sensor_height: 1.0
 
 # 裁剪高度 (单位: 米)
 # 传感器正下方第一个点如果高度偏差超过此值, 则认为不是地面
 # 值越小越严格, 值越大越宽松
-clipping_height: 0.1
+clipping_height: 0.2
 
 # 最小点距离 (单位: 米)
 # 距离传感器原点小于此距离的点将被忽略 (滤除近场噪声)
@@ -29,12 +29,12 @@ min_point_distance: 0.5
 # 将 360 度按此角度划分为多个扇区, 每个扇区独立进行地面判断
 # 值越小扇区越多, 判断越精细, 但计算量也越大
 # 典型值: 0.1 ~ 1.0 度
-radial_divider_angle: 0.1
+radial_divider_angle: 1.0
 
 # 同心圆分隔距离 (单位: 米)
 # 在此距离以内使用 local_max_slope, 超过此距离使用 general_max_slope
 # 设为 0 表示不使用同心圆分隔, 全部使用 general_max_slope
-concentric_divider_distance: 0.0
+concentric_divider_distance: 0.5
 
 # 局部最大坡度角 (单位: 度)
 # 在 concentric_divider_distance 范围内, 两点间坡度角超过此阈值则认为非地面
@@ -61,6 +61,6 @@ reclass_distance_threshold: 0.5
 # ---- 预过滤参数 (可选) ----
 # 在地面过滤前先进行简单的高度裁剪, 去除明显不在地面范围内的点
 pre_filter:
-  enable: false
-  min_z: -3.0    # 最低高度 (米)
-  max_z: 1.0     # 最高高度 (米)
+  enable: true
+  min_z: -2.0    # 最低高度 (米)
+  max_z: 0.5     # 最高高度 (米)

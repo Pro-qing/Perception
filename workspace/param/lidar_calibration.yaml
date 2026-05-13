@@ -1,5 +1,5 @@
 # workspace/param/lidar_calibration.yaml
-parent_frame: "base_link" 
+parent_frame: "velodyne" 
 
 # 话题名称配置
 topics:
