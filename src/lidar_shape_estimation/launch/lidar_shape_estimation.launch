@@ -2,11 +2,17 @@
     <!-- 定义参数文件路径 -->
     <arg name="param_file" default="/home/getq/perception/workspace/param/shape.yaml" />
 
+    <!-- 是否开启 debug 模式 (覆盖 yaml 中的 debug 参数) -->
+    <arg name="debug" default="true" />
+
     <!-- 启动 Shape Estimation 节点 -->
     <node pkg="lidar_shape_estimation" type="lidar_shape_estimation_node" name="lidar_shape_estimation_node" output="screen">
 
         <!-- 加载 OBB 参数 -->
         <rosparam command="load" file="$(arg param_file)" />
+
+        <!-- debug 参数可通过 launch 参数覆盖 -->
+        <param name="debug" value="$(arg debug)" />
 
     </node>
 </launch>

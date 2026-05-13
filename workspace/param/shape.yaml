@@ -6,6 +6,74 @@
 input_topic: /detection/lidar_detector/objects
 output_topic: /detection/lidar_detector/objects_obb
 
+# debug 参数
+debug: true                     # 是否开启 debug 模式，开启后会发布 rviz markers
+
 # OBB 计算参数
 min_cluster_size_for_obb: 4    # 最少点数才能计算 OBB
 use_pca: true                   # true: 使用 PCA 方法; false: 使用 MomentOfInertia 方法
+
+# 默认标签 (未匹配到任何分类规则时使用)
+default_label: unknown
+
+# =====================================================
+#  基于 OBB 尺寸的分类规则
+#  按优先级从上到下匹配, 第一个匹配的生效
+#  length = OBB 长轴 (已标准化为 length >= width)
+#  width  = OBB 短轴
+#  height = OBB 高度 (Z轴)
+# =====================================================
+classification:
+  # ---- Car (轿车) ----
+  car:
+    min_length: 3.0             # 最小长度 (米)
+    max_length: 5.5             # 最大长度 (米)
+    min_width:  1.2             # 最小宽度 (米)
+    max_width:  2.5             # 最大宽度 (米)
+    min_height: 1.0             # 最小高度 (米)
+    max_height: 2.2             # 最大高度 (米)
+
+  # ---- Truck (卡车) ----
+  truck:
+    min_length: 5.5
+    max_length: 15.0
+    min_width:  2.0
+    max_width:  3.5
+    min_height: 2.0
+    max_height: 4.5
+
+  # ---- Bus (公交车) ----
+  bus:
+    min_length: 8.0
+    max_length: 15.0
+    min_width:  2.3
+    max_width:  3.0
+    min_height: 2.5
+    max_height: 4.0
+
+  # ---- Bicycle (自行车/摩托车) ----
+  bicycle:
+    min_length: 1.2
+    max_length: 2.2
+    min_width:  0.3
+    max_width:  1.0
+    min_height: 0.8
+    max_height: 2.0
+
+  # ---- Person (行人) ----
+  person:
+    min_length: 0.3
+    max_length: 1.0
+    min_width:  0.3
+    max_width:  0.8
+    min_height: 1.0
+    max_height: 2.2
+
+  # ---- Box (箱子/障碍物) ----
+  box:
+    min_length: 0.1
+    max_length: 3.0
+    min_width:  0.1
+    max_width:  3.0
+    min_height: 0.1
+    max_height: 1.5
