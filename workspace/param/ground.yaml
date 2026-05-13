@@ -1,5 +1,5 @@
 # workspace/param/ground.yaml
-# Autoware-style Ray Ground Filter 参数配置
+# PCL RANSAC Ground Plane Segmentation 参数配置
 
 # ---- 话题配置 ----
 # 输入话题 (来自 lidar_downsample 的降采样点云)
@@ -9,54 +9,57 @@ input_topic: "/points_downsampled"
 no_ground_topic: "/lidar_no_ground"    # 去除地面后的障碍物点云
 ground_topic: "/lidar_ground"          # 纯地面点云
 
-# ---- Ray Ground Filter 参数 ----
+# ---- RANSAC 参数 ----
+ransac:
+  # RANSAC 最大迭代次数
+  # 值越大拟合越准确, 但计算量增加
+  # 典型值: 50 ~ 500
+  max_iterations: 100
 
-# 传感器安装高度 (相对于地面, 单位: 米)
-# 即 velodyne 坐标系原点到地面的垂直距离
-# 注意: velodyne 原点通常在车辆底部, 如果原点在地面, sensor_height 设为 0
-sensor_height: 1.0
+  # 点到拟合平面的最大距离 (单位: 米)
+  # 距离小于此值的点被认为是地面内点 (inlier)
+  # 值越小越严格 (只有非常平整的地面才会被识别), 值越大越宽松
+  # 这是 RANSAC 最关键的参数, 需要根据实际地面情况调整
+  # 典型值: 0.05 ~ 0.3
+  distance_threshold: 0.1
 
-# 裁剪高度 (单位: 米)
-# 传感器正下方第一个点如果高度偏差超过此值, 则认为不是地面
-# 值越小越严格, 值越大越宽松
-clipping_height: 0.2
+  # RANSAC 成功概率
+  # 值越接近 1, 需要的迭代次数越多, 但拟合更可靠
+  probability: 0.99
 
-# 最小点距离 (单位: 米)
-# 距离传感器原点小于此距离的点将被忽略 (滤除近场噪声)
-min_point_distance: 0.5
+  # 平面法向量与 Z 轴的最大夹角 (单位: 度)
+  # 仅在 use_perpendicular=true 时生效
+  # 地面法向量应该接近 Z 轴方向, 所以此角度通常很小
+  # 典型值: 5.0 ~ 20.0 度
+  eps_angle: 10.0
 
-# 径向扇区角度间隔 (单位: 度)
-# 将 360 度按此角度划分为多个扇区, 每个扇区独立进行地面判断
-# 值越小扇区越多, 判断越精细, 但计算量也越大
-# 典型值: 0.1 ~ 1.0 度
-radial_divider_angle: 1.0
+  # 是否优化模型系数
+  # true: 对找到的内点重新拟合以获得更精确的系数
+  optimize_coefficients: true
 
-# 同心圆分隔距离 (单位: 米)
-# 在此距离以内使用 local_max_slope, 超过此距离使用 general_max_slope
-# 设为 0 表示不使用同心圆分隔, 全部使用 general_max_slope
-concentric_divider_distance: 0.5
+  # 是否使用垂直平面模型
+  # true:  SACMODEL_PERPENDICULAR_PLANE - 地面必须垂直于 Z 轴 (推荐)
+  # false: SACMODEL_PLANE - 普通平面, 不约束方向
+  use_perpendicular: true
 
-# 局部最大坡度角 (单位: 度)
-# 在 concentric_divider_distance 范围内, 两点间坡度角超过此阈值则认为非地面
-# 近处地面通常更平整, 可以用较小的值
-local_max_slope: 8.0
+# ---- 地面约束参数 ----
+# 对 RANSAC 内点的高度进行额外约束
+ground:
+  # 地面点的最大 Z 值 (米)
+  # 高于此值的内点不认为是地面 (防止斜坡上的点被误判)
+  max_height: 0.5
 
-# 全局最大坡度角 (单位: 度)
-# 超出 concentric_divider_distance 范围后使用的坡度阈值
-# 远处地面可能有起伏, 通常设置比 local_max_slope 稍小
-# 典型值: 5.0 ~ 10.0 度
-general_max_slope: 5.0
+  # 地面点的最小 Z 值 (米)
+  # 低于此值的内点不认为是地面
+  min_height: -2.0
 
-# 最小高度阈值 (单位: 米)
-# 相邻两点的高度差绝对值如果超过此值, 则认为非地面
-# 用于补充坡度判断, 防止在水平距离很近但高度突变的点被误判为地面
-min_height_threshold: 0.2
-
-# 重分类距离阈值 (单位: 米)
-# 被判定为非地面的点, 如果与已确认的地面点之间距离小于此值,
-# 则重新分类为地面点 (用于平滑地面边界)
-# 设为 0 表示不进行重分类
-reclass_distance_threshold: 0.5
+# ---- 迭代拟合参数 (可选) ----
+# 启用后会多次执行 RANSAC, 每次移除已找到的地面点后继续拟合
+# 适用于有多个高度层次的地面 (如坡道、台阶等)
+iterative:
+  enable: false
+  max_iterations: 3           # 最大迭代次数
+  height_threshold: 0.05      # 点到平面距离小于此值则移除 (米)
 
 # ---- 预过滤参数 (可选) ----
 # 在地面过滤前先进行简单的高度裁剪, 去除明显不在地面范围内的点
