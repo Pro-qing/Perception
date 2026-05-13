@@ -1,0 +1,11 @@
+# =====================================================
+#  Lidar Shape Estimation (OBB) 参数配置
+# =====================================================
+
+# 话题参数
+input_topic: /detection/lidar_detector/objects
+output_topic: /detection/lidar_detector/objects_obb
+
+# OBB 计算参数
+min_cluster_size_for_obb: 4    # 最少点数才能计算 OBB
+use_pca: true                   # true: 使用 PCA 方法; false: 使用 MomentOfInertia 方法

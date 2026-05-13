@@ -1,0 +1,12 @@
+<launch>
+    <!-- 定义参数文件路径 -->
+    <arg name="param_file" default="/home/getq/perception/workspace/param/shape.yaml" />
+
+    <!-- 启动 Shape Estimation 节点 -->
+    <node pkg="lidar_shape_estimation" type="lidar_shape_estimation_node" name="lidar_shape_estimation_node" output="screen">
+
+        <!-- 加载 OBB 参数 -->
+        <rosparam command="load" file="$(arg param_file)" />
+
+    </node>
+</launch>
