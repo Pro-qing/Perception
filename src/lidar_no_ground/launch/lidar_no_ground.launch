@@ -1,0 +1,15 @@
+<launch>
+    <!-- 定义参数文件路径 -->
+    <arg name="param_file" default="/home/getq/perception/workspace/param/ground.yaml" />
+
+    <!-- 启动 LidarNoGround 节点 -->
+    <node pkg="lidar_no_ground" type="lidar_no_ground_node" name="lidar_no_ground_node" output="screen">
+
+        <!-- 加载地面过滤参数 -->
+        <rosparam command="load" file="$(arg param_file)" />
+
+        <!-- 可选: 重映射输入话题 (如果 /points_downsampled 话题名称不同) -->
+        <!-- <remap from="/points_downsampled" to="/your_custom_input_topic" /> -->
+
+    </node>
+</launch>

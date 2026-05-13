@@ -10,6 +10,9 @@
 #include <pcl/point_types.h>
 #include <pcl/common/transforms.h>
 #include <autoware_msgs/Waypoint.h>
+#include <tf2_ros/static_transform_broadcaster.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <tf2/LinearMath/Quaternion.h>
 
 #include <string>
 #include <map>
@@ -46,6 +49,9 @@ public:
 
         // ---- 发布者 ----
         pub_points_raw_ = nh_.advertise<PointCloud2>(topic_output_, 10);
+
+        // ---- 发布 TF 静态变换（4个雷达相对于 base_link 的位置）----
+        publishSensorTF();
         pub_main_calib_  = nh_.advertise<PointCloud2>("/points_main_calibration", 10);
         pub_mid_calib_   = nh_.advertise<PointCloud2>("/points_mid_calibration", 10);
         pub_left_calib_  = nh_.advertise<PointCloud2>("/points_left_calibration", 10);
@@ -82,6 +88,7 @@ private:
     laser_geometry::LaserProjection projector_;
     ros::Publisher pub_points_raw_;
     ros::Publisher pub_main_calib_, pub_mid_calib_, pub_left_calib_, pub_right_calib_;
+    tf2_ros::StaticTransformBroadcaster static_broadcaster_;
 
     // 话题名称（从 YAML 读取）
     std::string topic_main_, topic_mid_, topic_left_, topic_right_;
@@ -124,6 +131,44 @@ private:
         trans_right_ = trans_main_to_base * trans_right_to_velo;
 
         ROS_INFO("\033[1;34m[Sensor Input] Calibration matrices loaded & chained successfully.\033[0m");
+    }
+
+    // ============== 发布 4 个雷达的静态 TF ==============
+    void publishSensorTF() {
+        std::vector<geometry_msgs::TransformStamped> transforms;
+
+        std::vector<std::pair<std::string, Eigen::Affine3f>> sensor_transforms = {
+            {"lidar_main",  trans_main_},
+            {"lidar_mid",   trans_mid_},
+            {"lidar_left",  trans_left_},
+            {"lidar_right", trans_right_}
+        };
+
+        for (const auto& kv : sensor_transforms) {
+            geometry_msgs::TransformStamped ts;
+            ts.header.stamp = ros::Time::now();
+            ts.header.frame_id = parent_frame_;
+            ts.child_frame_id = kv.first;
+
+            Eigen::Vector3f pos = kv.second.translation();
+            ts.transform.translation.x = pos.x();
+            ts.transform.translation.y = pos.y();
+            ts.transform.translation.z = pos.z();
+
+            Eigen::Matrix3f rot = kv.second.rotation();
+            Eigen::Quaternionf quat(rot);
+            ts.transform.rotation.x = quat.x();
+            ts.transform.rotation.y = quat.y();
+            ts.transform.rotation.z = quat.z();
+            ts.transform.rotation.w = quat.w();
+
+            transforms.push_back(ts);
+
+            ROS_INFO("\033[1;36m[Sensor Input] TF: %s -> %s [%+.2f, %+.2f, %+.2f]\033[0m",
+                     parent_frame_.c_str(), kv.first.c_str(), pos.x(), pos.y(), pos.z());
+        }
+
+        static_broadcaster_.sendTransform(transforms);
     }
 
     Eigen::Affine3f getTransformFromParam(const std::string& param_ns) {
