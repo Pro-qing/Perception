@@ -180,7 +180,7 @@ private:
 
         // ---- Marker 1: 线框 (LINE_LIST) - 底面、顶面、竖直连接线 ----
         visualization_msgs::Marker line_marker;
-        line_marker.header.frame_id = "base_link";
+        line_marker.header.frame_id = "velodyne";
         line_marker.header.stamp = ros::Time::now();
         line_marker.ns = "body_filter";
         line_marker.id = 0;
@@ -231,7 +231,7 @@ private:
 
         // ---- Marker 2: 填充面 (TRIANGLE_LIST) - 侧面 ----
         visualization_msgs::Marker tri_marker;
-        tri_marker.header.frame_id = "base_link";
+        tri_marker.header.frame_id = "velodyne";
         tri_marker.header.stamp = ros::Time::now();
         tri_marker.ns = "body_filter_triangles";
         tri_marker.id = 1;
