@@ -21,6 +21,33 @@ voxel_grid:
   # false: 仅对 XYZ 坐标降采样
   downsample_all_data: true
 
+# 车身过滤 (Body Filter) - 使用多边形点位精确描述车身轮廓
+# 通过点到多边形 (Point-in-Polygon) 算法判断点是否在车身内部
+# Z 范围使用简单的 min/max 高度裁剪
+# 如果不需要车身过滤，请将 enable 设为 false
+body_filter:
+  enable: true
+  # 车身高度范围 (单位: 米)
+  min_z: 0.0
+  max_z: 2.0
+  # 车身轮廓多边形顶点 (X: 前后, Y: 左右, 单位: 米)
+  # 从车头开始，顺时针或逆时针依次列出各顶点
+  # 坐标系: base_link, X正方向为车辆前方, Y正方向为车辆左方
+  polygon:
+    # 车身轮廓 (以矩形为例，可替换为任意多边形)
+    - {x:  1.5, y: -0.8}   # 右前方
+    - {x:  1.5, y:  0.8}   # 左前方
+    - {x: -1.5, y:  0.8}   # 左后方
+    - {x: -1.5, y: -0.8}   # 右后方
+
+  # 是否发布车身 Marker 可视化
+  publish_marker: true
+  marker_topic: "/car"
+  marker_color_r: 0.0
+  marker_color_g: 1.0
+  marker_color_b: 0.0
+  marker_color_a: 0.5
+
 # 裁剪框 (CropBox) 参数 - 在降采样前裁剪点云范围
 # 如果不需要裁剪，请将 enable 设为 false
 crop_box:
