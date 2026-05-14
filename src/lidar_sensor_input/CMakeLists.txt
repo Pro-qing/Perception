@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_geometry_msgs
   geometry_msgs
   autoware_msgs
+  lidar_pipeline_monitor
 )
 
 ## 指定 PCL 依赖
@@ -28,14 +29,16 @@ include_directories(
 )
 
 ## ---- 1. 编译可执行文件 ----
-# 确保文件路径是 src/sensor_input_node.cpp
+# 确保文件路径是 src/lidar_sensor_input.cpp
 add_executable(sensor_input_node src/lidar_sensor_input.cpp)
+
+# 第一个参数写 sensor_input_node
+add_dependencies(sensor_input_node ${catkin_EXPORTED_TARGETS} lidar_pipeline_monitor_generate_messages_cpp)
 
 target_link_libraries(sensor_input_node
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES}
 )
-
 ## ---- 2. 注册并安装 Launch 和 Config 文件 (Colcon 关键步骤) ----
 # 安装可执行文件
 install(TARGETS sensor_input_node

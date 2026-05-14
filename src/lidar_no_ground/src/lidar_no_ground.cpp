@@ -8,6 +8,8 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/common/common.h>
 
+#include <lidar_pipeline_monitor/PipelineMetrics.h>
+
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -63,6 +65,8 @@ public:
         pub_no_ground_ = nh_.advertise<sensor_msgs::PointCloud2>(no_ground_topic_, 10);
         pub_ground_    = nh_.advertise<sensor_msgs::PointCloud2>(ground_topic_,    10);
 
+        pub_metrics_ = nh_.advertise<lidar_pipeline_monitor::PipelineMetrics>("/pipeline/metrics", 100);
+
         // ---- 订阅者 ----
         sub_points_ = nh_.subscribe(input_topic_, 10, &LidarNoGroundNode::pointCloudCallback, this);
 
@@ -93,6 +97,8 @@ private:
     ros::Publisher  pub_no_ground_;
     ros::Publisher  pub_ground_;
     ros::Subscriber sub_points_;
+
+    ros::Publisher pub_metrics_; 
 
     // 话题参数
     std::string input_topic_;
@@ -206,6 +212,8 @@ private:
 
     // ============== 主回调 ==============
     void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg) {
+
+        ros::Time cb_start = ros::Time::now(); // 【新增头】
         // 至少一个下游订阅者时才处理
         bool has_no_ground_sub = (pub_no_ground_.getNumSubscribers() > 0);
         bool has_ground_sub    = (pub_ground_.getNumSubscribers() > 0);
@@ -393,6 +401,16 @@ private:
             no_ground_msg.header.frame_id = msg->header.frame_id;
             pub_no_ground_.publish(no_ground_msg);
         }
+
+        // 【新增尾】
+        ros::Time cb_end = ros::Time::now();
+        lidar_pipeline_monitor::PipelineMetrics metric;
+        metric.header.stamp = msg->header.stamp; 
+        metric.node_name = "3_no_ground";
+        metric.transmission_delay = (cb_start - msg->header.stamp).toSec() * 1000.0;
+        metric.processing_time = (cb_end - cb_start).toSec() * 1000.0;
+        metric.total_latency = (cb_end - msg->header.stamp).toSec() * 1000.0;
+        pub_metrics_.publish(metric);
     }
 };
 

@@ -15,6 +15,8 @@
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Vector3.h>
 
+#include <lidar_pipeline_monitor/PipelineMetrics.h>
+
 #include <vector>
 #include <cmath>
 #include <string>
@@ -60,6 +62,8 @@ public:
         pub_cloud_clusters_ = nh_.advertise<autoware_msgs::CloudClusterArray>(cloud_clusters_topic_, 10);
         pub_objects_        = nh_.advertise<autoware_msgs::DetectedObjectArray>(objects_topic_, 10);
 
+        pub_metrics_ = nh_.advertise<lidar_pipeline_monitor::PipelineMetrics>("/pipeline/metrics", 100);
+
         // ---- 订阅者 ----
         sub_points_ = nh_.subscribe(input_topic_, 10,
             &LidarEuclideanClusterDetectorNode::pointCloudCallback, this);
@@ -86,6 +90,8 @@ private:
     ros::Publisher  pub_cloud_clusters_;
     ros::Publisher  pub_objects_;
     ros::Subscriber sub_points_;
+
+    ros::Publisher pub_metrics_; 
 
     // 话题参数
     std::string input_topic_;
@@ -256,6 +262,9 @@ private:
 
     // ============== 主回调 ==============
     void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg) {
+        
+        ros::Time cb_start = ros::Time::now(); // 【新增头】
+
         bool has_cluster_sub = (pub_cloud_clusters_.getNumSubscribers() > 0);
         bool has_object_sub  = (pub_objects_.getNumSubscribers() > 0);
 
@@ -368,6 +377,16 @@ private:
         if (has_object_sub) {
             pub_objects_.publish(object_array);
         }
+
+        // 【新增尾】
+        ros::Time cb_end = ros::Time::now();
+        lidar_pipeline_monitor::PipelineMetrics metric;
+        metric.header.stamp = msg->header.stamp; 
+        metric.node_name = "4_cluster";
+        metric.transmission_delay = (cb_start - msg->header.stamp).toSec() * 1000.0;
+        metric.processing_time = (cb_end - cb_start).toSec() * 1000.0;
+        metric.total_latency = (cb_end - msg->header.stamp).toSec() * 1000.0;
+        pub_metrics_.publish(metric);
 
         ROS_INFO_THROTTLE(2.0,
             "[Euclidean Cluster] Input points: %lu, Clusters found: %lu, Valid obstacles: %d",

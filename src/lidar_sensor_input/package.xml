@@ -77,6 +77,10 @@
   <exec_depend>tf2_geometry_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
 
+  <build_depend>lidar_pipeline_monitor</build_depend>
+  <build_export_depend>lidar_pipeline_monitor</build_export_depend>
+  <exec_depend>lidar_pipeline_monitor</exec_depend>
+
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

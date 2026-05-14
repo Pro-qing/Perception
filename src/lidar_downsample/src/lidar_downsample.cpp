@@ -7,6 +7,7 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/passthrough.h>
+#include <lidar_pipeline_monitor/PipelineMetrics.h>
 
 #include <vector>
 #include <cmath>
@@ -63,6 +64,8 @@ public:
         // ---- 发布者 ----
         pub_downsampled_ = nh_.advertise<sensor_msgs::PointCloud2>(output_topic_, 10);
 
+        pub_metrics_ = nh_.advertise<lidar_pipeline_monitor::PipelineMetrics>("/pipeline/metrics", 100);
+
         if (publish_marker_ && body_filter_enable_) {
             pub_marker_array_ = nh_.advertise<visualization_msgs::MarkerArray>(marker_topic_, 1, true);
             publishBodyMarker();
@@ -102,6 +105,8 @@ private:
     ros::Publisher pub_downsampled_;
     ros::Publisher pub_marker_array_;
     ros::Subscriber sub_points_;
+
+    ros::Publisher pub_metrics_; 
 
     // 话题参数
     std::string input_topic_;
@@ -284,6 +289,7 @@ private:
     }
 
     void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg) {
+        ros::Time cb_start = ros::Time::now(); // 【新增头】
         if (pub_downsampled_.getNumSubscribers() == 0) {
             return;
         }
@@ -381,6 +387,16 @@ private:
         output_msg.header.stamp    = msg->header.stamp;
         output_msg.header.frame_id = msg->header.frame_id;
         pub_downsampled_.publish(output_msg);
+
+         // 【新增尾】
+        ros::Time cb_end = ros::Time::now();
+        lidar_pipeline_monitor::PipelineMetrics metric;
+        metric.header.stamp = msg->header.stamp; 
+        metric.node_name = "2_downsample";
+        metric.transmission_delay = (cb_start - msg->header.stamp).toSec() * 1000.0;
+        metric.processing_time = (cb_end - cb_start).toSec() * 1000.0;
+        metric.total_latency = (cb_end - msg->header.stamp).toSec() * 1000.0;
+        pub_metrics_.publish(metric);
     }
 };
 

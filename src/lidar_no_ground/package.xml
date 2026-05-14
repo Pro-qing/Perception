@@ -25,6 +25,10 @@
   <exec_depend>roscpp</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
 
+  <build_depend>lidar_pipeline_monitor</build_depend>
+  <build_export_depend>lidar_pipeline_monitor</build_export_depend>
+  <exec_depend>lidar_pipeline_monitor</exec_depend>
+
   <export>
   </export>
 </package>

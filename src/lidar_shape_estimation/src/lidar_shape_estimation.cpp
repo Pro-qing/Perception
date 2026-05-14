@@ -16,6 +16,8 @@
 #include <geometry_msgs/Vector3.h>
 #include <geometry_msgs/Quaternion.h>
 
+#include <lidar_pipeline_monitor/PipelineMetrics.h>
+
 #include <tf/tf.h>
 
 #include <vector>
@@ -70,6 +72,8 @@ public:
                 "/detection/lidar_detector/obb_markers", 10);
         }
 
+        pub_metrics_ = nh_.advertise<lidar_pipeline_monitor::PipelineMetrics>("/pipeline/metrics", 100);
+
         // ---- 订阅者 ----
         sub_objects_ = nh_.subscribe(input_topic_, 10,
             &LidarShapeEstimationNode::objectsCallback, this);
@@ -95,6 +99,8 @@ private:
     ros::Publisher  pub_objects_;
     ros::Publisher  pub_markers_;
     ros::Subscriber sub_objects_;
+
+    ros::Publisher pub_metrics_; 
 
     // 话题参数
     std::string input_topic_;
@@ -509,6 +515,8 @@ private:
 
     // ============== 主回调 ==============
     void objectsCallback(const autoware_msgs::DetectedObjectArray::ConstPtr& msg) {
+
+        ros::Time cb_start = ros::Time::now(); // 【新增头】
         // 即使没有 objects 订阅者, 如果 debug 模式开启且有 markers 订阅者也要处理
         bool has_object_sub = (pub_objects_.getNumSubscribers() > 0);
         bool has_marker_sub = debug_ && (pub_markers_.getNumSubscribers() > 0);
@@ -635,6 +643,16 @@ private:
         if (has_marker_sub) {
             pub_markers_.publish(marker_array);
         }
+
+        // 【新增尾】
+        ros::Time cb_end = ros::Time::now();
+        lidar_pipeline_monitor::PipelineMetrics metric;
+        metric.header.stamp = msg->header.stamp; 
+        metric.node_name = "5_shape";
+        metric.transmission_delay = (cb_start - msg->header.stamp).toSec() * 1000.0;
+        metric.processing_time = (cb_end - cb_start).toSec() * 1000.0;
+        metric.total_latency = (cb_end - msg->header.stamp).toSec() * 1000.0;
+        pub_metrics_.publish(metric);
 
         ROS_INFO_THROTTLE(2.0,
             "[Shape Estimation] Input objects: %lu, OBB computed: %d, debug: %s",

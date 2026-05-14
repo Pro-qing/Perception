@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   sensor_msgs
   std_msgs
+  lidar_pipeline_monitor
 )
 
 catkin_package()
@@ -24,7 +25,7 @@ include_directories(
 add_executable(${PROJECT_NAME}_node src/lidar_euclidean_cluster_detector.cpp)
 
 ## Add cmake target dependencies of the executable
-add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} lidar_pipeline_monitor_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}_node

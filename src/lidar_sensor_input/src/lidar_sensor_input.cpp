@@ -14,6 +14,8 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <tf2/LinearMath/Quaternion.h>
 
+#include <lidar_pipeline_monitor/PipelineMetrics.h>
+
 #include <string>
 #include <map>
 
@@ -60,6 +62,8 @@ public:
         // ---- 发布者 ----
         pub_points_raw_ = nh_.advertise<PointCloud2>(topic_output_, 10);
 
+        pub_metrics_ = nh_.advertise<lidar_pipeline_monitor::PipelineMetrics>("/pipeline/metrics", 100);
+
         // ---- 发布 TF 静态变换（4个雷达相对于 base_link 的位置）----
         publishSensorTF();
         pub_main_calib_  = nh_.advertise<PointCloud2>("/points_main_calibration", 10);
@@ -99,6 +103,8 @@ private:
     ros::Publisher pub_points_raw_;
     ros::Publisher pub_main_calib_, pub_mid_calib_, pub_left_calib_, pub_right_calib_;
     tf2_ros::StaticTransformBroadcaster static_broadcaster_;
+
+    ros::Publisher pub_metrics_; 
 
     // 话题名称（从 YAML 读取）
     std::string topic_main_, topic_mid_, topic_left_, topic_right_;
@@ -350,6 +356,8 @@ private:
                       const LaserScan::ConstPtr&   msg_right)
     {
         pcl::PointCloud<pcl::PointXYZI>::Ptr merged_cloud(new pcl::PointCloud<pcl::PointXYZI>());
+        
+        ros::Time cb_start = ros::Time::now(); // 【新增头】
 
         // 根据当前行为模式决定处理哪些传感器
         if (sensor_enabled_["main"]) {
@@ -401,6 +409,16 @@ private:
             output_msg.header.frame_id = parent_frame_;
             pub_points_raw_.publish(output_msg);
         }
+
+        // 【新增尾】
+        ros::Time cb_end = ros::Time::now();
+        lidar_pipeline_monitor::PipelineMetrics metric;
+        metric.header.stamp = msg_16->header.stamp; 
+        metric.node_name = "1_input";
+        metric.transmission_delay = (cb_start - msg_16->header.stamp).toSec() * 1000.0;
+        metric.processing_time = (cb_end - cb_start).toSec() * 1000.0;
+        metric.total_latency = (cb_end - msg_16->header.stamp).toSec() * 1000.0;
+        pub_metrics_.publish(metric);
     }
 };
 
