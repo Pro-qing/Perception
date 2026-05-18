@@ -1,0 +1,18 @@
+<launch>
+    <!-- 定义参数文件路径 -->
+    <arg name="param_file" default="/home/getq/perception/workspace/param/charge.yaml" />
+
+    <!-- 启动 LidarNoCharge 节点 -->
+    <node pkg="lidar_no_charge" type="lidar_no_charge_node" name="lidar_no_charge_node" output="screen">
+
+        <!-- 加载充电桩过滤参数 -->
+        <rosparam command="load" file="$(arg param_file)" />
+
+        <!-- 话题参数 -->
+        <param name="input_topic"    value="/lidar_no_ground" />
+        <param name="output_topic"   value="/lidar_no_ground_no_charge" />
+        <param name="keypoint_topic" value="/keypoint_path" />
+        <param name="control_topic"  value="/lqr_dire" />
+
+    </node>
+</launch>
