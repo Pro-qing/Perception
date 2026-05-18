@@ -15,7 +15,7 @@ class PipelineMonitor:
         self.lock = threading.Lock()
         
         # 假设我们期望收到 5 个节点的数据
-        self.EXPECTED_NODES = 5
+        self.EXPECTED_NODES = 6
         
         rospy.loginfo("\033[1;32m[Pipeline Monitor] Started. Waiting for metrics...\033[0m")
 

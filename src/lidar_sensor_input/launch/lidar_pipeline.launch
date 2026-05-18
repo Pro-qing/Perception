@@ -8,12 +8,15 @@
     <!-- 3. 启动地面分割 -->
     <include file="$(find lidar_no_ground)/launch/lidar_no_ground.launch" />
 
-    <!-- 4. 启动欧式聚类检测 -->
+    <!-- 4. 启动充电桩过滤 -->
+    <include file="$(find lidar_no_charge)/launch/lidar_no_charge.launch" />
+
+    <!-- 5. 启动欧式聚类检测 -->
     <include file="$(find lidar_euclidean_cluster_detector)/launch/lidar_euclidean_cluster_detector.launch" />
 
-    <!-- 5. 启动边界/形状估计 -->
+    <!-- 6. 启动边界/形状估计 -->
     <include file="$(find lidar_shape_estimation)/launch/lidar_shape_estimation.launch" />
 
-    <!-- 6. 启动 Python 编写的流水线监控节点 (对应原 rosrun)
+    <!-- 7. 启动 Python 编写的流水线监控节点 (对应原 rosrun)
     <node pkg="lidar_pipeline_monitor" type="monitor_node.py" name="lidar_pipeline_monitor_node" output="screen" /> -->
 </launch>

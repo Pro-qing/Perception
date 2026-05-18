@@ -382,7 +382,7 @@ private:
         ros::Time cb_end = ros::Time::now();
         lidar_pipeline_monitor::PipelineMetrics metric;
         metric.header.stamp = msg->header.stamp; 
-        metric.node_name = "4_cluster";
+        metric.node_name = "5_cluster";
         metric.transmission_delay = (cb_start - msg->header.stamp).toSec() * 1000.0;
         metric.processing_time = (cb_end - cb_start).toSec() * 1000.0;
         metric.total_latency = (cb_end - msg->header.stamp).toSec() * 1000.0;
