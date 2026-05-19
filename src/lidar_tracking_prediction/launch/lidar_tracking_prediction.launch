@@ -1,0 +1,15 @@
+<launch>
+    <!-- 定义参数文件路径 -->
+    <arg name="param_file" default="/home/getq/perception/workspace/param/tracking_prediction.yaml" />
+
+    <!-- 启动 Tracking Prediction 节点 -->
+    <node pkg="lidar_tracking_prediction" type="lidar_tracking_prediction_node" name="lidar_tracking_prediction_node" output="screen">
+
+        <!-- 加载跟踪参数 -->
+        <rosparam command="load" file="$(arg param_file)" />
+
+        <!-- 可选: 重映射输入话题 -->
+        <!-- <remap from="/detection/lidar_detector/objects_obb" to="/your_custom_input_topic" /> -->
+
+    </node>
+</launch>

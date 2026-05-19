@@ -1,0 +1,21 @@
+# ============================================================
+#  Lidar Tracking Prediction 参数配置
+# ============================================================
+
+# ---- 话题参数 ----
+input_topic:  "/detection/lidar_detector/objects_obb"    # 输入话题 (来自 shape_estimation 的输出)
+output_topic: "/detection/lidar_detector/objects_tracked" # 输出话题 (带跟踪 ID 和速度估计)
+
+# ---- 跟踪参数 ----
+max_matching_distance: 3.0        # 数据关联最大匹配距离 (m), 超过此距离不进行关联
+max_consecutive_invisible: 3      # 连续未检测到的最大帧数, 超过后删除跟踪目标
+min_visible_count: 3              # 最小可见次数, 达到此次数才对外发布
+prediction_horizon: 1.0           # 预测时间范围 (s), 用于可视化和预测轨迹
+
+# ---- 卡尔曼滤波器参数 ----
+process_noise_pos: 1.0            # 过程噪声 - 位置分量
+process_noise_vel: 10.0           # 过程噪声 - 速度分量
+measurement_noise: 0.5            # 观测噪声
+
+# ---- Debug 参数 ----
+debug: false                      # 是否开启 debug 可视化 (跟踪标签、速度箭头、预测轨迹)
