@@ -3,14 +3,21 @@
 
 import sys
 import os
-import re
 import math
+
+# 确保脚本目录在 Python 路径中 (rosrun 兼容)
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir not in sys.path:
+    sys.path.insert(0, script_dir)
+
 from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
                              QTabWidget, QLabel, QPushButton, QFormLayout, 
                              QSpinBox, QDoubleSpinBox, QCheckBox, QScrollArea, 
                              QMessageBox, QTextEdit, QLineEdit, QGroupBox, QGridLayout, QComboBox)
 from PyQt5.QtGui import QPainter, QColor, QPen, QPolygonF, QFont
 from PyQt5.QtCore import Qt, QPointF, pyqtSignal, QObject
+
+from param_path import *
 
 # 使用 ruamel.yaml 保留原文件的所有注释和缩进格式
 from ruamel.yaml import YAML
@@ -31,66 +38,6 @@ except ImportError:
 # =====================================================================
 # 参数显示映射表
 # =====================================================================
-ALLOWED_YAML_PARAMS = {
-    # 基础过滤参数
-    "crop_radius": "最大过滤范围 (米)",
-    "crop_radius_x": "X轴前后误差补偿 (米)",
-    "height_min": "最小高度过滤阈值 (米)",
-    
-    # 体素滤波
-    "voxel_filter": "体素滤波下采样精度 (米)",
-    "voxel_filter_auto": "自动体素滤波 (自动调整防止CPU过高)",
-    "voxel_filter_eleva": "进电梯体素滤波精度 (米)",
-    
-    # 地面过滤
-    "filter_floor": "是否开启地面过滤",
-    "angle_error": "角度误差 (度)",
-    "dis_threshold": "距离阈值 (米)",
-    
-    # 噪点过滤
-    "filter_transient": "噪点过滤使能",
-    "neighboring_points": "邻近点数",
-    "stand_threshold": "标准差阈值",
-    "time_consistency_filter": "时间一致性滤波",
-    "transient_threshold_": "时间一致性滤波距离阈值 (米)",
-    
-    # 半径过滤
-    "radius_enble": "半径过滤使能",
-    "radius_radius": "过滤半径 (米)",
-    "radius_min_neighbors": "半径过滤最小邻点数",
-    
-    # 拖拽点过滤
-    "filter_drag_points": "拖拽点过滤使能",
-    "drag_cluster_tolerance": "聚类容差 (米)",
-    "drag_min_cluster_size": "最小聚类点数",
-    "drag_max_cluster_size": "最大聚类点数",
-    "drag_aspect_ratio_threshold": "长宽比阈值",
-    "drag_min_length": "最小长度 (米)",
-    "drag_max_width": "最大宽度 (米)",
-    "drag_isolation_radius": "孤立性判断半径 (米)",
-    "drag_max_nearby_clusters": "周围最大簇数",
-    
-    # 坐标转换
-    "enble_trans": "是否进行坐标转换",
-    "trans": "坐标转换参数",
-    
-    # 优化参数
-    "use_openmp": "启用OpenMP多线程加速",
-    "use_simd": "启用SIMD指令集优化",
-    "debug_mode": "调试模式",
-    
-    # 车辆轮廓
-    "rect": "车辆本体轮廓 (主)", 
-    "rect2": "车辆本体轮廓 (备选)",
-    
-    # 充电桩过滤
-    "charge_enble": "是否开启充电桩过滤",
-    "charge_length": "充电桩长度 (米)",
-    "charge_wide": "充电桩宽度 (米)",
-    "charge_high": "充电桩高度 (米)",
-    "charge_error": "与车头方向的误差距离 (米)"
-}
-
 SAFE_BASE_PARAMS = {
     "max_longitudinal_scale": "前后方向最大缩放比例",
     "min_longitudinal_scale": "前后方向最小缩放比例",
@@ -106,20 +53,6 @@ SAFE_BOX_TYPES = {
     "reverse_exigencyrect_": "急停框 (后退)",
     "slowrect_": "减速框 (前进)",
     "reverse_slowrect_": "减速框 (后退)"
-}
-
-ALLOWED_CFG_PARAMS = {
-    "top_min_angle": "补盲雷达限制最小角度 (度)",
-    "top_max_angle": "补盲雷达限制最大角度 (度)",
-    "left_filter_enable": "是否开启左侧雷达过滤",
-    "left_min_angle": "左侧雷达限制最小角度 (度)",
-    "left_max_angle": "左侧雷达限制最大角度 (度)",
-    "left_max_dis": "左侧雷达最大距离",
-    "right_filter_enable": "是否开启右侧雷达过滤",
-    "right_min_angle": "右侧雷达限制最小角度 (度)",
-    "right_max_angle": "右侧雷达限制最大角度 (度)",
-    "right_max_dis": "右侧雷达最大距离",
-    "consistency_enable": "是否开启双雷达一致性校验"
 }
 
 CALIB_GROUPS = {
@@ -435,16 +368,28 @@ class PolygonEditor(QWidget):
 class ConfigEditorGUI(QWidget):
     def __init__(self):
         super().__init__()
-        self.yaml_path = '/home/getq/param_ui/workspace/config/vehicle_size.yaml'
-        self.safe_yaml_path = '/home/getq/param_ui/workspace/config/safe_obstacle.yaml'
-        self.calib_yaml_path = '/home/getq/param_ui/workspace/param/lidar_calibration.yaml'
-        self.cfg_path = '/home/getq/work/autoware.ai/install/lidar_filtering/share/lidar_filtering/cfg/LidarFiltering.cfg'
+        self.safe_yaml_path = SAFE_OBSTACLE_YAML
+        self.calib_yaml_path = LIDAR_CALIBRATION_YAML
+        
+        # ---- perception pipeline 参数文件路径 (从 param_path.py 导入) ----
+        self.downsample_yaml_path = DOWNSAMPLE_YAML
+        self.ground_yaml_path = GROUND_YAML
+        self.charge_yaml_path = CHARGE_YAML
+        self.euclidean_yaml_path = EUCLIDEAN_CLUSTER_YAML
+        self.shape_yaml_path = SHAPE_YAML
         
         self.yaml_parser = YAML(); self.yaml_parser.preserve_quotes = True
-        self.yaml_data = None; self.safe_yaml_data = None; self.calib_yaml_data = None
-        self.cfg_lines = []; self.cfg_meta = {}
+        self.safe_yaml_data = None; self.calib_yaml_data = None
 
-        self.previews_basic = []; self.previews_safe = []
+        # ---- perception pipeline 数据 ----
+        self.downsample_yaml_data = None; self.downsample_widgets = {}
+        self.ground_yaml_data = None; self.ground_widgets = {}
+        self.charge_yaml_data = None; self.charge_widgets = {}
+        self.euclidean_yaml_data = None; self.euclidean_widgets = {}
+        self.shape_yaml_data = None; self.shape_widgets = {}
+
+        self.previews_safe = []
+        self.previews_downsample_poly = []
         self.calib_previews = {} 
 
         if HAS_ROS:
@@ -458,7 +403,7 @@ class ConfigEditorGUI(QWidget):
         self.init_ui()
 
     def dispatch_ref_cloud(self, points):
-        for p in self.previews_basic + self.previews_safe:
+        for p in self.previews_safe + self.previews_downsample_poly:
             try: p.set_cloud_points(points)
             except: pass
         for p in self.calib_previews.values():
@@ -478,14 +423,43 @@ class ConfigEditorGUI(QWidget):
         layout = QVBoxLayout(self)
         self.tabs = QTabWidget()
         
-        self.tab_yaml  = QWidget(); self.setup_yaml_tab();  self.tabs.addTab(self.tab_yaml, "常规车辆参数")
         self.tab_safe  = QWidget(); self.setup_safe_tab();  self.tabs.addTab(self.tab_safe, "安全检测框设置")
-        self.tab_cfg   = QWidget(); self.setup_cfg_tab();   self.tabs.addTab(self.tab_cfg,  "高级动态配置")
         self.tab_calib = QWidget(); self.setup_calib_tab(); self.tabs.addTab(self.tab_calib, "雷达标定配置")
+
+        # ---- perception pipeline 参数编辑标签页 ----
+        self.tab_downsample = QWidget(); self.setup_generic_yaml_tab(
+            self.tab_downsample, "降采样参数", self.downsample_yaml_path,
+            "downsample_yaml_data", "downsample_widgets",
+            self.load_downsample_yaml, self.save_downsample_yaml)
+        self.tabs.addTab(self.tab_downsample, "降采样参数")
+
+        self.tab_ground = QWidget(); self.setup_generic_yaml_tab(
+            self.tab_ground, "地面分割参数", self.ground_yaml_path,
+            "ground_yaml_data", "ground_widgets",
+            self.load_ground_yaml, self.save_ground_yaml)
+        self.tabs.addTab(self.tab_ground, "地面分割")
+
+        self.tab_charge = QWidget(); self.setup_generic_yaml_tab(
+            self.tab_charge, "充电桩参数", self.charge_yaml_path,
+            "charge_yaml_data", "charge_widgets",
+            self.load_charge_yaml, self.save_charge_yaml)
+        self.tabs.addTab(self.tab_charge, "充电桩过滤")
+
+        self.tab_euclidean = QWidget(); self.setup_generic_yaml_tab(
+            self.tab_euclidean, "欧式聚类参数", self.euclidean_yaml_path,
+            "euclidean_yaml_data", "euclidean_widgets",
+            self.load_euclidean_yaml, self.save_euclidean_yaml)
+        self.tabs.addTab(self.tab_euclidean, "欧式聚类")
+
+        self.tab_shape = QWidget(); self.setup_generic_yaml_tab(
+            self.tab_shape, "形状估计参数", self.shape_yaml_path,
+            "shape_yaml_data", "shape_widgets",
+            self.load_shape_yaml, self.save_shape_yaml)
+        self.tabs.addTab(self.tab_shape, "形状估计")
         
         layout.addWidget(self.tabs)
 
-    def save_generic_yaml(self, widgets_dict, data_source, path):
+    def save_generic_yaml(self, widgets_dict, data_source, path):  # kept for safe_obstacle
         for k, w in widgets_dict.items():
             if isinstance(w, QCheckBox): data_source[k] = w.isChecked()
             elif isinstance(w, QDoubleSpinBox): data_source[k] = w.value()
@@ -508,66 +482,7 @@ class ConfigEditorGUI(QWidget):
         with open(path, 'w', encoding='utf-8') as f: self.yaml_parser.dump(data_source, f)
         return True
 
-    # ========================== 1. 常规参数 ==========================
-    def setup_yaml_tab(self):
-        l = QVBoxLayout(self.tab_yaml)
-        h = QHBoxLayout(); br = QPushButton("🔄 重新读取"); br.clicked.connect(self.load_yaml); br.setStyleSheet("background-color: #757575; color: white;")
-        bs = QPushButton("💾 保存修改"); bs.clicked.connect(self.save_yaml); bs.setStyleSheet("background-color: #4CAF50; color: white;")
-        h.addWidget(br); h.addWidget(bs); l.addLayout(h)
-        self.scroll_y = QScrollArea(); self.scroll_y.setWidgetResizable(True)
-        self.yaml_form_widget = QWidget(); self.yaml_form_layout = QFormLayout(self.yaml_form_widget)
-        self.scroll_y.setWidget(self.yaml_form_widget); l.addWidget(self.scroll_y)
-        self.load_yaml()
-
-    def load_yaml(self):
-        if not os.path.exists(self.yaml_path): return
-        with open(self.yaml_path, 'r', encoding='utf-8') as f: self.yaml_data = self.yaml_parser.load(f)
-        for i in reversed(range(self.yaml_form_layout.count())):
-            w = self.yaml_form_layout.itemAt(i).widget()
-            if w: w.setParent(None)
-        self.previews_basic = []; self.yaml_widgets = {}
-        
-        for k, lbl in ALLOWED_YAML_PARAMS.items():
-            if k not in self.yaml_data: continue
-            val = self.yaml_data[k]
-            
-            # 处理多边形编辑器 (rect, rect2)
-            if k in ["rect", "rect2"]:
-                box = QGroupBox(lbl); bl = QHBoxLayout(box)
-                t = QTextEdit(); t.hide(); self.yaml_widgets[k] = t
-                pv = VehiclePreviewWidget(0, 255, 255); self.previews_basic.append(pv)
-                ed = PolygonEditor(val, k, self.yaml_data, t, pv)
-                bl.addWidget(ed, stretch=1); bl.addWidget(pv, stretch=1)
-                self.yaml_form_layout.addRow(box)
-            
-            # 处理复杂结构 (trans)
-            elif k == "trans" and isinstance(val, list):
-                label = QLabel(lbl); label.setStyleSheet("font-weight: bold; margin-top: 5px;")
-                w = QTextEdit(); w.setMaximumHeight(100)
-                try:
-                    b = StringIO(); YAML().dump(val, b); w.setPlainText(b.getvalue())
-                except: w.setPlainText(str(val))
-                self.yaml_widgets[k] = w; self.yaml_form_layout.addRow(label, w)
-            
-            # 处理布尔值
-            elif isinstance(val, bool):
-                label = QLabel(lbl); label.setStyleSheet("font-weight: bold; margin-top: 5px;")
-                w = QCheckBox(); w.setChecked(val)
-                self.yaml_widgets[k] = w; self.yaml_form_layout.addRow(label, w)
-            
-            # 处理数值
-            else:
-                label = QLabel(lbl); label.setStyleSheet("font-weight: bold; margin-top: 5px;")
-                w = QDoubleSpinBox(); w.setRange(-10000, 10000); w.setDecimals(2)
-                try: w.setValue(float(val) if val is not None else 0.0)
-                except: w.setValue(0.0)
-                self.yaml_widgets[k] = w; self.yaml_form_layout.addRow(label, w)
-
-    def save_yaml(self):
-        if self.save_generic_yaml(self.yaml_widgets, self.yaml_data, self.yaml_path):
-            QMessageBox.information(self, "提示", "常规参数保存成功！")
-
-    # ========================== 2. 安全框 ==========================
+    # ========================== 安全框 ==========================
     def setup_safe_tab(self):
         l = QVBoxLayout(self.tab_safe)
         h = QHBoxLayout()
@@ -616,7 +531,7 @@ class ConfigEditorGUI(QWidget):
             if w: w.setParent(None)
             
         self.previews_safe = []; self.safe_widgets = {}
-        ref = self.yaml_data.get('rect', []) if self.yaml_data else []
+        ref = []
         
         # 读取全局 enable 和 mode_mapping
         global_enable = self.safe_yaml_data.get('enable', [])
@@ -882,8 +797,17 @@ class ConfigEditorGUI(QWidget):
             if w: w.setParent(None)
             
         self.calib_widgets = {}; self.calib_previews.clear()
-        if 'tf_calibration' not in self.calib_yaml_data: return
-        tf_data = self.calib_yaml_data['tf_calibration']
+
+        # 支持两种 YAML 结构: calibration/main: {x, y, z, roll, pitch, yaw} 或 tf_calibration/main_x: val
+        cal_data = None
+        if 'calibration' in self.calib_yaml_data:
+            cal_data = self.calib_yaml_data['calibration']
+        elif 'tf_calibration' in self.calib_yaml_data:
+            cal_data = self.calib_yaml_data['tf_calibration']
+        if cal_data is None:
+            return
+
+        use_nested = 'calibration' in self.calib_yaml_data and isinstance(cal_data.get('main'), dict)
 
         for prefix, config in CALIB_GROUPS.items():
             group = QGroupBox(f"{config['name']} -> 发布话题: {config['calib_topic']}")
@@ -893,11 +817,15 @@ class ConfigEditorGUI(QWidget):
             params = ['x', 'y', 'z', 'yaw', 'pitch', 'roll']
             spins = {}
             for i, p in enumerate(params):
-                key = f"{prefix}_{p}"; val = tf_data.get(key, 0.0)
+                if use_nested:
+                    sensor_data = cal_data.get(prefix, {})
+                    val = sensor_data.get(p, 0.0) if isinstance(sensor_data, dict) else 0.0
+                else:
+                    val = cal_data.get(f"{prefix}_{p}", 0.0)
                 sb = QDoubleSpinBox()
                 sb.setRange(-3.14159*2 if p in ['yaw','pitch','roll'] else -10.0, 3.14159*2 if p in ['yaw','pitch','roll'] else 10.0)
-                sb.setDecimals(4); sb.setSingleStep(0.01); sb.setValue(val)
-                self.calib_widgets[key] = sb; spins[p] = sb
+                sb.setDecimals(4); sb.setSingleStep(0.01); sb.setValue(float(val) if val is not None else 0.0)
+                self.calib_widgets[f"{prefix}_{p}"] = sb; spins[p] = sb
                 gl.addWidget(QLabel(f"{p.upper()}:"), i//2, (i%2)*2)
                 gl.addWidget(sb, i//2, (i%2)*2 + 1)
             
@@ -922,56 +850,368 @@ class ConfigEditorGUI(QWidget):
             self.calib_form_layout.addWidget(group)
 
     def save_calib_yaml(self):
-        if not self.calib_yaml_data or 'tf_calibration' not in self.calib_yaml_data: return
-        tf_data = self.calib_yaml_data['tf_calibration']
-        for k, w in self.calib_widgets.items(): tf_data[k] = w.value()
+        if not self.calib_yaml_data: return
+        cal_data = None
+        use_nested = False
+        if 'calibration' in self.calib_yaml_data:
+            cal_data = self.calib_yaml_data['calibration']
+            use_nested = isinstance(cal_data.get('main'), dict)
+        elif 'tf_calibration' in self.calib_yaml_data:
+            cal_data = self.calib_yaml_data['tf_calibration']
+        if cal_data is None: return
+
+        for k, w in self.calib_widgets.items():
+            prefix, param = k.rsplit('_', 1)
+            if use_nested:
+                if prefix not in cal_data or not isinstance(cal_data[prefix], dict):
+                    continue
+                cal_data[prefix][param] = w.value()
+            else:
+                cal_data[k] = w.value()
         try:
             with open(self.calib_yaml_path, 'w', encoding='utf-8') as f: self.yaml_parser.dump(self.calib_yaml_data, f)
             QMessageBox.information(self, "提示", "雷达标定参数保存成功！")
         except Exception as e: QMessageBox.critical(self, "错误", f"保存失败: {e}")
 
-    # ========================== 4. CFG ==========================
-    def setup_cfg_tab(self):
-        l = QVBoxLayout(self.tab_cfg)
-        h = QHBoxLayout(); br = QPushButton("🔄 重新读取"); br.clicked.connect(self.load_cfg); br.setStyleSheet("background-color: #757575; color: white;")
-        bs = QPushButton("⚡ 保存动态修改"); bs.clicked.connect(self.save_cfg); bs.setStyleSheet("background-color: #f44336; color: white;")
+    # =====================================================================
+    # 通用 YAML 参数编辑器 (用于 perception pipeline 参数)
+    # =====================================================================
+    # 层级参数描述映射表: key = "父key/子key", value = 中文描述
+    GENERIC_PARAM_LABELS = {
+        # ---- downsample.yaml ----
+        "input_topic": "输入话题",
+        "output_topic": "输出话题",
+        "voxel_grid/leaf_size_x": "体素X尺寸 (米)",
+        "voxel_grid/leaf_size_y": "体素Y尺寸 (米)",
+        "voxel_grid/leaf_size_z": "体素Z尺寸 (米)",
+        "voxel_grid/min_points_per_voxel": "每体素最小点数",
+        "voxel_grid/downsample_all_data": "降采样所有字段",
+        "body_filter/enable": "车身过滤使能",
+        "body_filter/min_z": "车身最小高度 (米)",
+        "body_filter/max_z": "车身最大高度 (米)",
+        "body_filter/polygon": "车身轮廓多边形",
+        "body_filter/publish_marker": "发布车身Marker",
+        "body_filter/marker_topic": "Marker话题",
+        "body_filter/marker_color_r": "Marker颜色R",
+        "body_filter/marker_color_g": "Marker颜色G",
+        "body_filter/marker_color_b": "Marker颜色B",
+        "body_filter/marker_color_a": "Marker颜色A",
+        "crop_box/enable": "裁剪框使能",
+        "crop_box/min_x": "裁剪最小X (米)",
+        "crop_box/max_x": "裁剪最大X (米)",
+        "crop_box/min_y": "裁剪最小Y (米)",
+        "crop_box/max_y": "裁剪最大Y (米)",
+        "crop_box/min_z": "裁剪最小Z (米)",
+        "crop_box/max_z": "裁剪最大Z (米)",
+        "crop_box/negative": "裁剪反转",
+        "height_filter/enable": "高度过滤使能",
+        "height_filter/min_height": "最小高度 (米)",
+        "height_filter/max_height": "最大高度 (米)",
+        # ---- ground.yaml ----
+        "ransac/max_iterations": "RANSAC最大迭代",
+        "ransac/distance_threshold": "距离阈值 (米)",
+        "ransac/probability": "成功概率",
+        "ransac/eps_angle": "法向量夹角 (度)",
+        "ransac/optimize_coefficients": "优化模型系数",
+        "ransac/use_perpendicular": "垂直平面模型",
+        "ground/max_height": "地面最大高度 (米)",
+        "ground/min_height": "地面最小高度 (米)",
+        "iterative/enable": "迭代拟合使能",
+        "iterative/max_iterations": "迭代最大次数",
+        "iterative/height_threshold": "高度阈值 (米)",
+        "pre_filter/enable": "预过滤使能",
+        "pre_filter/min_z": "预过滤最小Z (米)",
+        "pre_filter/max_z": "预过滤最大Z (米)",
+        # ---- charge.yaml ----
+        "charge/enable": "充电桩过滤使能",
+        "charge/length": "充电桩长度 (米)",
+        "charge/wide": "充电桩宽度 (米)",
+        "charge/high": "充电桩高度 (米)",
+        "charge/error": "充电桩误差 (米)",
+        # ---- euclidean_cluster.yaml ----
+        "cluster_tolerance": "聚类容差 (米)",
+        "min_cluster_size": "最小簇点数",
+        "max_cluster_size": "最大簇点数",
+        "kdtree_eps": "KD-Tree搜索精度",
+        "obstacle_filter/enable": "障碍物过滤使能",
+        "obstacle_filter/min_height": "障碍物最小高度 (米)",
+        "obstacle_filter/max_height": "障碍物最大高度 (米)",
+        "obstacle_filter/min_width": "障碍物最小宽度 (米)",
+        "obstacle_filter/max_width": "障碍物最大宽度 (米)",
+        "obstacle_filter/min_length": "障碍物最小长度 (米)",
+        "obstacle_filter/max_length": "障碍物最大长度 (米)",
+        "obstacle_filter/max_distance": "障碍物最大距离 (米)",
+        # ---- shape.yaml ----
+        "debug": "调试模式",
+        "min_cluster_size_for_obb": "OBB最小簇点数",
+        "use_pca": "使用PCA方法",
+        "default_label": "默认标签",
+        "classification/car/min_length": "轿车-最小长度",
+        "classification/car/max_length": "轿车-最大长度",
+        "classification/car/min_width": "轿车-最小宽度",
+        "classification/car/max_width": "轿车-最大宽度",
+        "classification/car/min_height": "轿车-最小高度",
+        "classification/car/max_height": "轿车-最大高度",
+        "classification/truck/min_length": "卡车-最小长度",
+        "classification/truck/max_length": "卡车-最大长度",
+        "classification/truck/min_width": "卡车-最小宽度",
+        "classification/truck/max_width": "卡车-最大宽度",
+        "classification/truck/min_height": "卡车-最小高度",
+        "classification/truck/max_height": "卡车-最大高度",
+        "classification/bus/min_length": "公交-最小长度",
+        "classification/bus/max_length": "公交-最大长度",
+        "classification/bus/min_width": "公交-最小宽度",
+        "classification/bus/max_width": "公交-最大宽度",
+        "classification/bus/min_height": "公交-最小高度",
+        "classification/bus/max_height": "公交-最大高度",
+        "classification/bicycle/min_length": "自行车-最小长度",
+        "classification/bicycle/max_length": "自行车-最大长度",
+        "classification/bicycle/min_width": "自行车-最小宽度",
+        "classification/bicycle/max_width": "自行车-最大宽度",
+        "classification/bicycle/min_height": "自行车-最小高度",
+        "classification/bicycle/max_height": "自行车-最大高度",
+        "classification/person/min_length": "行人-最小长度",
+        "classification/person/max_length": "行人-最大长度",
+        "classification/person/min_width": "行人-最小宽度",
+        "classification/person/max_width": "行人-最大宽度",
+        "classification/person/min_height": "行人-最小高度",
+        "classification/person/max_height": "行人-最大高度",
+        "classification/box/min_length": "箱子-最小长度",
+        "classification/box/max_length": "箱子-最大长度",
+        "classification/box/min_width": "箱子-最小宽度",
+        "classification/box/max_width": "箱子-最大宽度",
+        "classification/box/min_height": "箱子-最小高度",
+        "classification/box/max_height": "箱子-最大高度",
+    }
+
+    def _walk_yaml(self, data, prefix=""):
+        """递归遍历 YAML 数据，生成 (full_key, value, label, depth) 列表"""
+        items = []
+        if isinstance(data, CommentedMap):
+            for key in data:
+                full_key = f"{prefix}/{key}" if prefix else str(key)
+                val = data[key]
+                if isinstance(val, (CommentedMap, dict)):
+                    # 展开为分组
+                    group_label = self.GENERIC_PARAM_LABELS.get(full_key, str(key))
+                    items.append(("__group__", full_key, group_label, 0))
+                    items.extend(self._walk_yaml(val, full_key))
+                elif isinstance(val, (list, CommentedSeq)):
+                    # 列表类型：用 QTextEdit 展示
+                    label = self.GENERIC_PARAM_LABELS.get(full_key, str(key))
+                    items.append((full_key, val, label, 0))
+                else:
+                    label = self.GENERIC_PARAM_LABELS.get(full_key, str(key))
+                    items.append((full_key, val, label, 0))
+        return items
+
+    def setup_generic_yaml_tab(self, tab, title, yaml_path, data_attr, widgets_attr, load_func, save_func):
+        """通用 YAML 参数编辑标签页设置"""
+        l = QVBoxLayout(tab)
+        h = QHBoxLayout()
+        br = QPushButton("🔄 重新读取")
+        br.setStyleSheet("background-color: #757575; color: white;")
+        br.clicked.connect(load_func)
+        bs = QPushButton(f"💾 保存{title}")
+        bs.setStyleSheet("background-color: #4CAF50; color: white;")
+        bs.clicked.connect(save_func)
         h.addWidget(br); h.addWidget(bs); l.addLayout(h)
-        self.scroll_c = QScrollArea(); self.scroll_c.setWidgetResizable(True)
-        self.cfg_form_widget = QWidget(); self.cfg_form_layout = QFormLayout(self.cfg_form_widget)
-        self.scroll_c.setWidget(self.cfg_form_widget); l.addWidget(self.scroll_c)
-        self.load_cfg()
 
-    def load_cfg(self):
-        if not os.path.exists(self.cfg_path): return
-        with open(self.cfg_path, 'r', encoding='utf-8') as f: self.cfg_lines = f.readlines()
-        for i in reversed(range(self.cfg_form_layout.count())):
-            w = self.cfg_form_layout.itemAt(i).widget()
+        scroll = QScrollArea(); scroll.setWidgetResizable(True)
+        form_widget = QWidget()
+        form_layout = QVBoxLayout(form_widget)
+        scroll.setWidget(form_widget)
+        l.addWidget(scroll)
+
+        # 保存引用
+        setattr(tab, '_form_layout', form_layout)
+
+        # 触发加载
+        load_func()
+
+    def _add_widget_pair(self, target_layout, lbl, w):
+        """安全地添加 label+widget 到布局，兼容 QFormLayout 和 QVBoxLayout"""
+        if isinstance(target_layout, QFormLayout):
+            target_layout.addRow(lbl, w)
+        else:
+            # QVBoxLayout: 创建一个临时 QWidget 包裹 QFormLayout
+            row_widget = QWidget()
+            row_form = QFormLayout(row_widget)
+            row_form.setContentsMargins(0, 0, 0, 0)
+            row_form.addRow(lbl, w)
+            target_layout.addWidget(row_widget)
+
+    def _load_generic_yaml(self, yaml_path, data_attr, widgets_attr, tab):
+        """通用 YAML 加载逻辑"""
+        if not os.path.exists(yaml_path):
+            return
+        yaml_parser = YAML()
+        yaml_parser.preserve_quotes = True
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml_parser.load(f)
+        setattr(self, data_attr, data)
+
+        form_layout = tab._form_layout
+        # 清空旧控件
+        for i in reversed(range(form_layout.count())):
+            w = form_layout.itemAt(i).widget()
             if w: w.setParent(None)
-        self.cfg_widgets = {}; self.cfg_meta = {}
-        for idx, line in enumerate(self.cfg_lines):
-            if "gen.add" not in line or line.strip().startswith("#"): continue
-            s = line.find('(')+1; e = line.rfind(')')
-            p = [x.strip() for x in re.split(r',\s*(?=(?:[^"]*"[^"]*")*[^"]*$)', line[s:e])]
-            if len(p) >= 5:
-                name = p[0].strip('"\'')
-                self.cfg_meta[name] = {'idx':idx, 'type':p[1], 'parts':p, 'prefix':line[:s]}
-        for k, lbl in ALLOWED_CFG_PARAMS.items():
-            if k not in self.cfg_meta: continue
-            m = self.cfg_meta[k]; pt, dv = m['type'], m['parts'][4]
-            label = QLabel(lbl); label.setStyleSheet("font-weight: bold; margin-top: 5px;")
-            if pt == 'bool_t': w = QCheckBox(); w.setChecked(dv == "True")
-            else:
-                w = QDoubleSpinBox(); w.setDecimals(2); w.setValue(float(dv))
-                w.setRange(float(m['parts'][5]) if len(m['parts'])>5 else -100, float(m['parts'][6]) if len(m['parts'])>6 else 100)
-            self.cfg_widgets[k] = w; self.cfg_form_layout.addRow(label, w)
 
-    def save_cfg(self):
-        for k, w in self.cfg_widgets.items():
-            m = self.cfg_meta[k]; p = m['parts'].copy()
-            p[4] = "True" if (isinstance(w, QCheckBox) and w.isChecked()) else ("False" if isinstance(w, QCheckBox) else str(round(w.value(), 2)))
-            self.cfg_lines[m['idx']] = f"{m['prefix']}{', '.join(p)})\n"
-        with open(self.cfg_path, 'w', encoding='utf-8') as f: f.writelines(self.cfg_lines)
-        QMessageBox.information(self, "提示", "动态配置修改成功,请重启系统。")
+        widgets = {}
+        setattr(self, widgets_attr, widgets)
+
+        # 创建默认的顶层 QFormLayout 容器 (处理没有分组的顶层参数)
+        default_container = QWidget()
+        default_form = QFormLayout(default_container)
+        form_layout.addWidget(default_container)
+        setattr(tab, '_current_group_layout', default_form)
+
+        items = self._walk_yaml(data)
+        for item in items:
+            full_key, val, label_text, depth = item
+
+            if full_key == "__group__":
+                # 分组标题
+                group = QGroupBox(f"📁 {label_text}")
+                group.setStyleSheet("QGroupBox { border: 2px solid #4CAF50; border-radius: 6px; margin-top: 20px; } QGroupBox::title { color: #4CAF50; font-size: 15px; }")
+                form_layout.addWidget(group)
+                # 创建 QFormLayout 放入 group
+                gf = QFormLayout(group)
+                setattr(tab, '_current_group_layout', gf)
+                continue
+
+            target_layout = getattr(tab, '_current_group_layout', default_form)
+
+            if isinstance(val, bool):
+                lbl = QLabel(label_text); lbl.setStyleSheet("font-weight: bold; margin-top: 5px;")
+                w = QCheckBox(); w.setChecked(val)
+                widgets[full_key] = w
+                self._add_widget_pair(target_layout, lbl, w)
+            elif isinstance(val, (int, float)):
+                lbl = QLabel(label_text); lbl.setStyleSheet("font-weight: bold; margin-top: 5px;")
+                w = QDoubleSpinBox(); w.setRange(-100000, 100000); w.setDecimals(4)
+                try: w.setValue(float(val))
+                except: w.setValue(0.0)
+                widgets[full_key] = w
+                self._add_widget_pair(target_layout, lbl, w)
+            elif isinstance(val, (list, CommentedSeq)):
+                # 检查是否为多边形点位列表 (list of {x, y} dicts)
+                is_polygon = (len(val) > 0 and isinstance(val[0], (CommentedMap, dict))
+                              and 'x' in val[0] and 'y' in val[0])
+                if is_polygon:
+                    # 使用 PolygonEditor + VehiclePreviewWidget
+                    poly_group = QGroupBox(f"📐 {label_text}")
+                    poly_hl = QHBoxLayout(poly_group)
+                    t = QTextEdit(); t.hide()
+                    pv = VehiclePreviewWidget(0, 200, 255)
+                    self.previews_downsample_poly.append(pv)
+                    ed = PolygonEditor(list(val), full_key, data, t, pv)
+                    poly_hl.addWidget(ed, stretch=1)
+                    poly_hl.addWidget(pv, stretch=1)
+                    widgets[full_key] = t
+                    target_layout.addWidget(poly_group)
+                else:
+                    lbl = QLabel(label_text); lbl.setStyleSheet("font-weight: bold; margin-top: 5px; color: #E65100;")
+                    w = QTextEdit(); w.setMaximumHeight(120)
+                    try:
+                        b = StringIO(); YAML().dump(val, b); w.setPlainText(b.getvalue())
+                    except: w.setPlainText(str(val))
+                    widgets[full_key] = w
+                    self._add_widget_pair(target_layout, lbl, w)
+            elif isinstance(val, str):
+                lbl = QLabel(label_text); lbl.setStyleSheet("font-weight: bold; margin-top: 5px;")
+                w = QLineEdit(); w.setText(str(val))
+                widgets[full_key] = w
+                self._add_widget_pair(target_layout, lbl, w)
+            elif val is None:
+                lbl = QLabel(f"{label_text} (null)"); lbl.setStyleSheet("font-weight: bold; margin-top: 5px; color: #999;")
+                w = QLineEdit(); w.setPlaceholderText("null")
+                widgets[full_key] = w
+                self._add_widget_pair(target_layout, lbl, w)
+
+    def _save_generic_yaml(self, yaml_path, data_attr, widgets_attr, title):
+        """通用 YAML 保存逻辑"""
+        data = getattr(self, data_attr)
+        widgets = getattr(self, widgets_attr)
+        if data is None:
+            return
+
+        for full_key, w in widgets.items():
+            # 通过路径定位到 YAML 数据中的值
+            keys = full_key.split('/')
+            target = data
+            for k in keys[:-1]:
+                if k in target:
+                    target = target[k]
+                else:
+                    break
+            final_key = keys[-1]
+
+            if isinstance(w, QCheckBox):
+                target[final_key] = w.isChecked()
+            elif isinstance(w, QDoubleSpinBox):
+                target[final_key] = w.value()
+            elif isinstance(w, QTextEdit):
+                try:
+                    text = w.toPlainText().strip()
+                    target[final_key] = YAML().load(text)
+                except Exception as e:
+                    print(f"解析 {full_key} 失败: {e}")
+            elif isinstance(w, QLineEdit):
+                text = w.text().strip()
+                # 尝试保持原类型
+                orig = target.get(final_key)
+                if isinstance(orig, str) or orig is None:
+                    target[final_key] = text
+                else:
+                    try:
+                        target[final_key] = YAML().load(text)
+                    except:
+                        target[final_key] = text
+
+        try:
+            yaml_parser = YAML()
+            yaml_parser.preserve_quotes = True
+            with open(yaml_path, 'w', encoding='utf-8') as f:
+                yaml_parser.dump(data, f)
+            QMessageBox.information(self, "提示", f"{title}保存成功！")
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"保存失败: {e}")
+
+    # ---- downsample.yaml ----
+    def load_downsample_yaml(self):
+        self._load_generic_yaml(self.downsample_yaml_path, "downsample_yaml_data", "downsample_widgets", self.tab_downsample)
+
+    def save_downsample_yaml(self):
+        self._save_generic_yaml(self.downsample_yaml_path, "downsample_yaml_data", "downsample_widgets", "降采样参数")
+
+    # ---- ground.yaml ----
+    def load_ground_yaml(self):
+        self._load_generic_yaml(self.ground_yaml_path, "ground_yaml_data", "ground_widgets", self.tab_ground)
+
+    def save_ground_yaml(self):
+        self._save_generic_yaml(self.ground_yaml_path, "ground_yaml_data", "ground_widgets", "地面分割参数")
+
+    # ---- charge.yaml ----
+    def load_charge_yaml(self):
+        self._load_generic_yaml(self.charge_yaml_path, "charge_yaml_data", "charge_widgets", self.tab_charge)
+
+    def save_charge_yaml(self):
+        self._save_generic_yaml(self.charge_yaml_path, "charge_yaml_data", "charge_widgets", "充电桩参数")
+
+    # ---- euclidean_cluster.yaml ----
+    def load_euclidean_yaml(self):
+        self._load_generic_yaml(self.euclidean_yaml_path, "euclidean_yaml_data", "euclidean_widgets", self.tab_euclidean)
+
+    def save_euclidean_yaml(self):
+        self._save_generic_yaml(self.euclidean_yaml_path, "euclidean_yaml_data", "euclidean_widgets", "欧式聚类参数")
+
+    # ---- shape.yaml ----
+    def load_shape_yaml(self):
+        self._load_generic_yaml(self.shape_yaml_path, "shape_yaml_data", "shape_widgets", self.tab_shape)
+
+    def save_shape_yaml(self):
+        self._save_generic_yaml(self.shape_yaml_path, "shape_yaml_data", "shape_widgets", "形状估计参数")
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
