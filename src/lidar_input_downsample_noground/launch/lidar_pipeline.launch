@@ -1,0 +1,33 @@
+<launch>
+    <!-- ============================================================ -->
+    <!-- 整合节点: sensor_input + downsample + no_ground               -->
+    <!-- 三个 YAML 配置文件保持不变，直接加载到同一节点的私有命名空间    -->
+    <!-- ============================================================ -->
+
+    <!-- 参数文件路径 -->
+    <arg name="calib_file"   default="/home/getq/perception/workspace/param/lidar_calibration.yaml" />
+    <arg name="downsample_file" default="/home/getq/perception/workspace/param/downsample.yaml" />
+    <arg name="ground_file"  default="/home/getq/perception/workspace/param/ground.yaml" />
+
+    <!-- 启动整合节点 -->
+    <node pkg="lidar_input_downsample_noground" type="lidar_pipeline_node" name="lidar_pipeline_node" output="screen">
+
+        <!-- 加载 sensor_input 标定参数 (parent_frame, topics, calibration, filter_radius, behaviors) -->
+        <rosparam command="load" file="$(arg calib_file)" />
+
+        <!-- 加载 downsample 参数 (voxel_grid, body_filter, crop_box, height_filter) -->
+        <!-- 注意: downsample.yaml 中的 input_topic/output_topic 会被加载但不使用 -->
+        <rosparam command="load" file="$(arg downsample_file)" />
+
+        <!-- 加载 ground 参数 (ransac, ground, iterative, pre_filter) -->
+        <!-- 注意: ground.yaml 中的 input_topic/no_ground_topic/ground_topic 会被加载但不使用 -->
+        <rosparam command="load" file="$(arg ground_file)" />
+
+        <!-- 额外的输出话题配置 (原始 YAML 中没有的) -->
+        <param name="topics/output_raw"         type="str" value="/points_raw" />
+        <param name="topics/output_downsampled" type="str" value="/points_downsampled" />
+        <param name="topics/output_no_ground"   type="str" value="/lidar_no_ground" />
+        <param name="topics/output_ground"      type="str" value="/lidar_ground" />
+
+    </node>
+</launch>
