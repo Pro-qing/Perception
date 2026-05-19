@@ -590,7 +590,9 @@ class ConfigEditorGUI(QWidget):
             
             mode_mapping_label = QLabel("模式映射:")
             mode_mapping_edit = QLineEdit()
-            mode_mapping_val = global_mode_mapping.get(suffix, [])
+            # mode_mapping 的 key 可能是 int 或 str，都需要尝试
+            mode_mapping_val = global_mode_mapping.get(suffix, 
+                global_mode_mapping.get(int(suffix) if suffix.isdigit() else suffix, []))
             try:
                 b = StringIO()
                 YAML().dump(mode_mapping_val, b)
