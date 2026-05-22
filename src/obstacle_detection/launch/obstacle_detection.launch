@@ -1,0 +1,30 @@
+<launch>
+    <node pkg="obstacle_detection" type="obstacle_detection" 
+          name="obstacle_detection" output="screen">
+        <!-- 基础参数配置 -->
+        <param name="target_frame" value="velodyne" />
+        <param name="points_mid_topic" value="/points_mid_calibration" />
+        <param name="distance_threshold" value="0.4" />
+        <!-- 滤波参数 -->
+        <param name="voxel_leaf_size" value="0.00" />
+        <param name="z_axis_min" value="-1.60" />
+        <param name="z_axis_max" value="0.50" />
+        <param name="roi_radius" value="10.0" />
+        <param name="use_roi_filter" value="true" />
+        
+        <!-- 地面分割参数 -->
+        <param name="ground_threshold" value="0.15" />
+        
+        <!-- 聚类参数 -->
+        <param name="cluster_tolerance" value="0.15" />
+        <param name="min_cluster_size" value="5" />
+        <param name="max_cluster_size" value="1000" />
+
+        <rosparam file="$(find obstacle_detection)/params/obstacle_detection.yaml" command="load"/>
+        
+        <!-- 日志级别 -->
+        <!-- <param name="log_level" value="DEBUG" /> -->
+                <!-- 日志级别 -->
+        <param name="log_level" value="INFO" />
+    </node>
+</launch>
