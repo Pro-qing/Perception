@@ -1,30 +1,62 @@
+<!--
+  障碍物检测节点启动文件
+
+  该节点用于电梯和库位场景下的障碍物检测，通过融合中距雷达和补盲雷达的点云数据，
+  对目标区域进行异物检测，并通过位标志向下游系统报告检测结果。
+
+  订阅的Topics:
+    - points_mid_topic (sensor_msgs/PointCloud2): 中距雷达点云
+    - /fused_points_tip (sensor_msgs/PointCloud2): 补盲雷达点云
+    - /keypoint_path (autoware_msgs/KeyPointArray): 导航关键点路径
+    - /feedback_status (autoware_remove_msgs/State): 反馈状态
+    - /elevator_info (autoware_msgs/ElevatorInfo): 电梯信息
+    - /lqr_dire (std_msgs/Int8): 电梯控制方向标志
+    - /floor_set (std_msgs/Int8): 目标楼层设置
+    - /current_pose (geometry_msgs/PoseStamped): 当前车辆位姿
+
+  发布的Topics:
+    - /obstacle_detection (std_msgs/UInt32): 障碍物检测状态(位标志)
+    - /points_fused_detection (sensor_msgs/PointCloud2): 融合后的点云
+    - /target_region_points (sensor_msgs/PointCloud2): 目标区域内点云
+    - /ground_points_mid (sensor_msgs/PointCloud2): 地面点云
+    - /obstacle_points_mid (sensor_msgs/PointCloud2): 障碍物点云
+    - /clustered_points_mid (sensor_msgs/PointCloud2): 彩色聚类点云
+    - /obstacle_detection_markers (visualization_msgs/MarkerArray): 可视化标记
+-->
 <launch>
     <node pkg="obstacle_detection" type="obstacle_detection" 
           name="obstacle_detection" output="screen">
-        <!-- 基础参数配置 -->
-        <param name="target_frame" value="velodyne" />
-        <param name="points_mid_topic" value="/points_mid_calibration" />
-        <param name="distance_threshold" value="0.4" />
-        <!-- 滤波参数 -->
-        <param name="voxel_leaf_size" value="0.00" />
-        <param name="z_axis_min" value="-1.60" />
-        <param name="z_axis_max" value="0.50" />
-        <param name="roi_radius" value="10.0" />
-        <param name="use_roi_filter" value="true" />
-        
-        <!-- 地面分割参数 -->
-        <param name="ground_threshold" value="0.15" />
-        
-        <!-- 聚类参数 -->
-        <param name="cluster_tolerance" value="0.15" />
-        <param name="min_cluster_size" value="5" />
-        <param name="max_cluster_size" value="1000" />
+        <!-- ========== 基础参数配置 ========== -->
+        <param name="target_frame" value="velodyne" />      <!-- 目标坐标系，所有点云都会变换到此坐标系 -->
+        <param name="points_mid_topic" value="/points_mid_calibration" />  <!-- 中距雷达点云topic -->
+        <param name="distance_threshold" value="0.4" />     <!-- 距离目标点小于此值时停止检测(米) -->
 
+        <!-- ========== 点云滤波参数 ========== -->
+        <param name="voxel_leaf_size" value="0.00" />       <!-- 体素降采样大小(米)，0表示不降采样 -->
+        <param name="z_axis_min" value="-1.60" />           <!-- Z轴滤波最小值(米) -->
+        <param name="z_axis_max" value="0.50" />            <!-- Z轴滤波最大值(米) -->
+        <param name="roi_radius" value="10.0" />            <!-- ROI区域半径(米) -->
+        <param name="use_roi_filter" value="true" />        <!-- 是否启用ROI滤波 -->
+        
+        <!-- ========== 地面分割参数 ========== -->
+        <param name="ground_threshold" value="0.15" />      <!-- RANSAC地面分割距离阈值(米) -->
+        
+        <!-- ========== 欧几里得聚类参数(仅电梯场景使用) ========== -->
+        <param name="cluster_tolerance" value="0.15" />     <!-- 聚类容差(米) -->
+        <param name="min_cluster_size" value="5" />         <!-- 最小聚类点数 -->
+        <param name="max_cluster_size" value="1000" />      <!-- 最大聚类点数 -->
+
+        <!-- ========== 库位检测防误判参数 ========== -->
+        <param name="min_region_points" value="5" />         <!--  区域内点数低于此值不判定为障碍物 -->
+        <param name="garage_history_size" value="5" />       <!--  滑动窗口大小(帧数) -->
+        <param name="garage_confirm_threshold" value="3" />  <!--  窗口内需有N帧检测到才确认 -->
+        <param name="garage_enable_distance" value="6.0" />  <!--  库位检测启用距离(米) -->
+
+        <!-- 加载yaml配置文件(包含标定参数、电梯/库位检测区域、车体轮廓等) -->
         <rosparam file="$(find obstacle_detection)/params/obstacle_detection.yaml" command="load"/>
         
-        <!-- 日志级别 -->
-        <!-- <param name="log_level" value="DEBUG" /> -->
-                <!-- 日志级别 -->
+        <!-- ========== 日志级别 ========== -->
+        <!-- <param name="log_level" value="DEBUG" /> -->    <!-- 调试时打开 -->
         <param name="log_level" value="INFO" />
     </node>
 </launch>
