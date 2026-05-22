@@ -1,7 +1,19 @@
+/**
+ * @file IrregularPolygonFilter.cpp
+ * @brief 不规则多边形区域滤波器实现
+ *
+ * 实现了基于射线法的多边形内外判断，以及正向/反向点云滤波功能。
+ * 在本项目中主要用于过滤车体自身的激光雷达反射点。
+ */
 
 #include "obstacle_detection/IrregularPolygonFilter.hpp"
 
-
+/**
+ * @brief 构造函数 - 初始化默认参数
+ *
+ * Z轴范围默认为float能表示的最大范围（相当于不启用Z过滤）
+ * 强度滤波默认关闭
+ */
 IrregularPolygonFilter::IrregularPolygonFilter() : 
                             min_z_(-std::numeric_limits<float>::max()), 
                             max_z_(std::numeric_limits<float>::max()),

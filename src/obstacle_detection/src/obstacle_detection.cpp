@@ -1,7 +1,27 @@
+/**
+ * @file obstacle_detection.cpp
+ * @brief 障碍物检测节点主实现文件
+ *
+ * 实现了完整的障碍物检测流水线，包括：
+ * - 双雷达点云同步接收与融合
+ * - 点云预处理(标定→ROI→坐标变换→降采样→Z轴滤波→地面分割→车体过滤)
+ * - 目标区域障碍物检测(电梯/库位场景)
+ * - 检测结果发布与RVIZ可视化
+ *
+ * 检测结果通过位标志(obstacle_detection_)发布：
+ *   bit0: 电梯区域是否有障碍物
+ *   bit1: 库位区域是否有障碍物
+ */
+
 #include "obstacle_detection/IrregularPolygonFilter.hpp"
 #include "obstacle_detection/obstacle_detection.hpp"
 #include <boost/bind.hpp>
 
+/**
+ * @brief 主函数 - 节点入口
+ *
+ * 初始化ROS节点，创建ObstacleDetection对象并进入spin循环
+ */
 int main(int argc, char** argv) {
     ros::init(argc, argv, "obstacle_detection");
     ros::NodeHandle nh;
@@ -15,10 +35,22 @@ int main(int argc, char** argv) {
 
 
 /*
+ * 以下为ObstacleDetection类的实现
+ */
 
-*/
 
-
+/**
+ * @brief 构造函数 - 初始化整个障碍物检测节点
+ *
+ * 初始化流程:
+ * 1. 设置日志级别
+ * 2. 加载所有参数(从launch文件和yaml)
+ * 3. 创建双雷达同步订阅者(使用ApproximateTime策略)
+ * 4. 创建其他订阅者(导航路径、反馈状态、电梯信息等)
+ * 5. 创建所有发布者
+ * 6. 创建10Hz定时器(用于持续发布检测状态)
+ * 7. 初始化目标点和当前位姿的默认值
+ */
 ObstacleDetection::ObstacleDetection(ros::NodeHandle& nh, ros::NodeHandle& private_nh)
     : nh_(nh), private_nh_(private_nh) {
     setLogLevel();
@@ -35,6 +67,13 @@ ObstacleDetection::ObstacleDetection(ros::NodeHandle& nh, ros::NodeHandle& priva
     private_nh_.param<bool>("use_roi_filter", use_roi_filter_, true);
     private_nh_.param<std::string>("points_mid_topic", points_mid_topic_, "/points_mid");
     private_nh_.param<double>("distance_threshold", distance_threshold_, 0.5);
+    // 方案B: 最小点数阈值 - 目标区域内点数低于此值不判定为有障碍物
+    private_nh_.param<int>("min_region_points", min_region_points_, 5);
+    // 方案C: 库位检测时间维度防抖参数
+    private_nh_.param<int>("garage_history_size", garage_history_size_, 5);
+    private_nh_.param<int>("garage_confirm_threshold", garage_confirm_threshold_, 3);
+    // 方案E: 库位检测启用距离
+    private_nh_.param<double>("garage_enable_distance", garage_enable_distance_, 6.0);
     
 
     // 订阅补盲雷达话题并同步
@@ -95,11 +134,33 @@ ObstacleDetection::ObstacleDetection(ros::NodeHandle& nh, ros::NodeHandle& priva
     ROS_INFO("Distance threshold: %.2f m", distance_threshold_);
 }
 
+/**
+ * @brief 定时器回调 - 以10Hz频率发布障碍物检测状态
+ *
+ * 即使没有新的点云输入，也持续发布检测状态，确保下游系统能及时获取最新状态。
+ * obstacle_detection_ 是一个位标志：
+ *   bit0 (0x01): 电梯区域检测结果
+ *   bit1 (0x02): 库位区域检测结果
+ */
 void ObstacleDetection::timerCallback(const ros::TimerEvent& event)
 {
     obstacle_detection_pub_.publish(obstacle_detection_);
 }
 
+/**
+ * @brief 中距雷达点云预处理流水线
+ *
+ * 完整处理流程:
+ * 1. 从参数服务器动态加载电梯区域和车体轮廓参数(支持运行时修改)
+ * 2. ROS消息 → PCL点云转换
+ * 3. 雷达外参标定补偿 (points_mid_calibration)
+ * 4. ROI区域滤波 (去除远处无效点)
+ * 5. 坐标系变换 (源坐标系 → target_frame，通常是velodyne)
+ * 6. 体素降采样 (降低点云密度，voxel_leaf_size=0时跳过)
+ * 7. Z轴直通滤波 (保留z_axis_min_到z_axis_max_范围内的点)
+ * 8. RANSAC地面分割 (分离地面点和障碍物点)
+ * 9. 车体轮廓过滤 (去除车辆自身的激光雷达反射点)
+ */
 bool ObstacleDetection::preprocessMidCloud(const sensor_msgs::PointCloud2::ConstPtr& input_msg,
                                            MidProcessResult& result) {
     ros::Time start_time = ros::Time::now();
@@ -190,9 +251,22 @@ bool ObstacleDetection::preprocessMidCloud(const sensor_msgs::PointCloud2::Const
     return true;
 }
 
+/**
+ * @brief 双雷达同步回调 - 核心处理入口
+ *
+ * 这是整个障碍物检测的主处理函数，由message_filters同步器触发。
+ * 处理流程:
+ * 1. 检查目标点是否启用（不启用则清除检测标志并返回）
+ * 2. 预处理mid点云（标定→ROI→变换→降采样→地面分割→车体过滤）
+ * 3. 将tip点云变换到目标坐标系
+ * 4. 融合mid和tip两路点云
+ * 5. 对融合后的点云进行目标区域检测
+ * 6. 根据目标类型（电梯/库位）设置对应的检测标志位
+ */
 void ObstacleDetection::syncCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& mid_msg,
                                           const sensor_msgs::PointCloud2::ConstPtr& tip_msg) {
 
+    // 目标点未启用时，清除所有检测标志位并直接返回
     if (!targetPoint_.enable) {
         obstacle_detection_.data &= ~1;
         obstacle_detection_.data &= ~(1 << 1);
@@ -259,10 +333,34 @@ void ObstacleDetection::syncCloudCallback(const sensor_msgs::PointCloud2::ConstP
         publishPointClouds(mid_result.ground_cloud, fused_cloud, cluster_indices, fused_msg.header);
         publishObstacleInfo(obstacles, fused_msg.header);
     } else if (targetPoint_.type_e == POINT_TYPE_GARAGE) {
-        if (target_region_has_noise_) {
+        // 方案C: 时间维度防抖 - 使用滑动窗口对多帧检测结果进行投票
+        // 维护最近 garage_history_size_ 帧的检测结果
+        // 只有当窗口内有 >= garage_confirm_threshold_ 帧检测到噪声时才确认有障碍物
+        // 这样可以过滤掉间歇性的单帧噪声误报
+        garage_detection_history_.push_back(target_region_has_noise_);
+        
+        // 保持滑动窗口大小
+        while (static_cast<int>(garage_detection_history_.size()) > garage_history_size_) {
+            garage_detection_history_.pop_front();
+        }
+        
+        // 统计窗口内检测到噪声的帧数
+        int noise_count = 0;
+        for (const auto& detection : garage_detection_history_) {
+            if (detection) noise_count++;
+        }
+        
+        // 只有当确认帧数 >= 阈值时才报告有障碍物
+        if (noise_count >= garage_confirm_threshold_) {
             obstacle_detection_.data |= (1 << 1);
+            ROS_INFO_THROTTLE(1.0, "Garage obstacle CONFIRMED: %d/%d frames detected noise", 
+                              noise_count, garage_history_size_);
         } else {
             obstacle_detection_.data &= ~(1 << 1);
+            if (noise_count > 0) {
+                ROS_INFO_THROTTLE(1.0, "Garage obstacle pending: %d/%d frames (threshold: %d)", 
+                                  noise_count, garage_history_size_, garage_confirm_threshold_);
+            }
         }
     } else {
         obstacle_detection_.data &= ~1;
@@ -287,16 +385,23 @@ void ObstacleDetection::keyPointPathCallback(const autoware_msgs::KeyPointArray:
                     ROS_INFO("connects");
                 }
                 targetPoint_.map_pose = msg->path.back().pose;
+                // 目标点切换时清除库位检测历史记录，避免旧数据影响新目标的判断
+                garage_detection_history_.clear();
      
                 break;
             }
         }
     }  
 }
+/**
+ * @brief 反馈状态回调 - 库位场景启用条件(方案E: 使用可配置的启用距离)
+ *
+ * 当任务类型为1且距离目标 < garage_enable_distance_ 时启用库位检测
+ * 缩短启用距离(从10m改为6m)可以让目标点位置更稳定，减少检测区域偏移
+ */
 void ObstacleDetection::feedbackStatusCallback(const autoware_remove_msgs::State::ConstPtr& msg) {
-    // feedbackStatus_ = *msg;
     if (targetPoint_.type_e == POINT_TYPE_GARAGE) {
-        if (msg->TaskInfo.type == 1 && msg->TaskInfo.site.dis < 10.00) {
+        if (msg->TaskInfo.type == 1 && msg->TaskInfo.site.dis < garage_enable_distance_) {
             targetPoint_.enable = true;
         }
         else {
@@ -713,6 +818,9 @@ void ObstacleDetection::checkTargetPointRegion(const PointCloud::Ptr& obstacle_c
     size_t points_in_region = 0;
     size_t points_outside_region = 0;
     
+    // 方案B: 记录区域内的点数，用于后续与最小点数阈值比较
+    // 不再在发现单个点时就立即设置has_noise，而是等统计完所有点后再判断
+    
     // 输出目标点信息用于调试（检查目标点位置是否稳定）
     static Eigen::Vector3f last_target_position(0, 0, 0);
     static int position_change_count = 0;
@@ -750,17 +858,17 @@ void ObstacleDetection::checkTargetPointRegion(const PointCloud::Ptr& obstacle_c
         if (targetPoint_.type_e == POINT_TYPE_ELEVATOR)
         {
             // 检查是否在区域内（包含边界）
+            // 注意：不在这里设置has_noise，而是在统计完所有点后根据min_region_points_阈值判断
             if (x_in_range && y_in_range && z_in_range) {
                 point_in_region = true;
-                has_noise = true;
                 obstacle_detection_.data &= ~1;
             }
         }
         else if (targetPoint_.type_e == POINT_TYPE_GARAGE) {
             // 检查是否在区域内（包含边界）
+            // 注意：不在这里设置has_noise，而是在统计完所有点后根据min_region_points_阈值判断
             if (x_in_range && y_in_range && z_in_range) {
                 point_in_region = true;
-                has_noise = true;
             }
         }
         
@@ -773,14 +881,24 @@ void ObstacleDetection::checkTargetPointRegion(const PointCloud::Ptr& obstacle_c
         }
     }
     
+    // 方案B: 使用最小点数阈值判断是否有障碍物
+    // 只有区域内的点数 >= min_region_points_ 时才判定为有障碍物
+    if (static_cast<int>(points_in_region) >= min_region_points_) {
+        has_noise = true;
+    } else {
+        has_noise = false;
+        ROS_INFO_THROTTLE(1.0, "Region points (%lu) below threshold (%d), not considered noise", 
+                          points_in_region, min_region_points_);
+    }
+    
     // 调试信息：如果发现有框外的点被添加，输出详细信息
     if (points_in_region > 0 && points_in_region != region_points->size()) {
         ROS_WARN("Mismatch: points_in_region=%lu, region_points->size()=%lu", 
                  points_in_region, region_points->size());
     }
     
-    // 发布区域内的点云
-    if (region_points->size() > 0) {
+    // 发布区域内的点云(仅当点数满足阈值时才发布)
+    if (static_cast<int>(region_points->size()) >= min_region_points_) {
         // 双重验证：再次检查所有点是否真的在区域内（使用完全相同的逻辑）
         PointCloud::Ptr verified_points(new PointCloud);
         verified_points->reserve(region_points->size());
