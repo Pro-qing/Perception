@@ -10,9 +10,14 @@ topics:
   output: "/points_raw"
   waypoint: "/lqr_targetwayp"
 
+# calibration:
+#   main:  {x: 0.986, y: -0.01, z: 1.8, roll: 0.0, pitch: 0.0, yaw: -0.03}
+#   mid:   {x: 0.183, y: -0.004, z: -0.36, roll: -0.027, pitch: 2.9534, yaw: 3.098}
+#   left:  {x: 0.22, y: 0.33, z: -1.8, roll: 3.1415926, pitch: 0.0, yaw: -2.08}
+#   right: {x: 0.21, y: -0.36, z: -1.8, roll: 3.1415926, pitch: 0.0, yaw: 2.17}
 calibration:
-  main:  {x: 0.986, y: -0.01, z: 1.8, roll: 0.0, pitch: 0.0, yaw: -0.03}
-  mid:   {x: 0.183, y: -0.004, z: -0.36, roll: -0.027, pitch: 2.9534, yaw: 3.098}
+  main:  {x: 0.3, y: 0, z: 0.8, roll: 0.0, pitch: 0.0, yaw: 0}
+  mid:   {x: 0.1, y: 0, z: -0.3, roll: 3.1415926, pitch: 0, yaw: 0.0}
   left:  {x: 0.22, y: 0.33, z: -1.8, roll: 3.1415926, pitch: 0.0, yaw: -2.08}
   right: {x: 0.21, y: -0.36, z: -1.8, roll: 3.1415926, pitch: 0.0, yaw: 2.17}
 
@@ -41,5 +46,10 @@ behaviors:
   "4":   # 坡道模式
     main: true
     mid: true
+    left: false
+    right: false
+  "5":   # debug模式
+    main: true
+    mid: false
     left: false
     right: false
