@@ -58,6 +58,13 @@ bool SensorInputProcessor::processInput(
     ros::Time& stamp)
 {
     merged_cloud.reset(new pcl::PointCloud<pcl::PointXYZI>());
+
+    // 安全检查：消息不能为空
+    if (!msg_16) {
+        ROS_WARN_THROTTLE(5.0, "[Sensor Input] msg_16 is null, skipping.");
+        return false;
+    }
+
     stamp = msg_16->header.stamp;
 
     // 预分配：假设合并后点云大小约为各路之和的上限
@@ -72,41 +79,65 @@ bool SensorInputProcessor::processInput(
     }
 
     if (enabled["main"]) {
-        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_main(new pcl::PointCloud<pcl::PointXYZI>());
-        cloud_main->reserve(40000);
-        processCloud(msg_16, trans_main_, cloud_main);
-        *merged_cloud += *cloud_main;
-        publishCalibratedCloud(cloud_main, msg_16->header.stamp, pub_main_calib_);
-    }
-
-    if (enabled["mid"]) {
-        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_mid(new pcl::PointCloud<pcl::PointXYZI>());
-        cloud_mid->reserve(10000);
-        processCloud(msg_mid, trans_mid_, cloud_mid);
-        *merged_cloud += *cloud_mid;
-        publishCalibratedCloud(cloud_mid, msg_mid->header.stamp, pub_mid_calib_);
-    }
-
-    if (enabled["left"]) {
-        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_left(new pcl::PointCloud<pcl::PointXYZI>());
-        cloud_left->reserve(5000);
-        processScan(msg_left, trans_left_, cloud_left);
-        publishCalibratedCloud(cloud_left, msg_left->header.stamp, pub_left_calib_);
-        if (filter_radius_left_ > 0.0) {
-            filterByRadius(cloud_left, filter_radius_left_);
+        try {
+            pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_main(new pcl::PointCloud<pcl::PointXYZI>());
+            cloud_main->reserve(40000);
+            processCloud(msg_16, trans_main_, cloud_main);
+            *merged_cloud += *cloud_main;
+            publishCalibratedCloud(cloud_main, msg_16->header.stamp, pub_main_calib_);
+        } catch (const std::exception& e) {
+            ROS_WARN_THROTTLE(5.0, "[Sensor Input] Exception processing main: %s", e.what());
+        } catch (...) {
+            ROS_WARN_THROTTLE(5.0, "[Sensor Input] Unknown exception processing main.");
         }
-        *merged_cloud += *cloud_left;
     }
 
-    if (enabled["right"]) {
-        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_right(new pcl::PointCloud<pcl::PointXYZI>());
-        cloud_right->reserve(5000);
-        processScan(msg_right, trans_right_, cloud_right);
-        publishCalibratedCloud(cloud_right, msg_right->header.stamp, pub_right_calib_);
-        if (filter_radius_right_ > 0.0) {
-            filterByRadius(cloud_right, filter_radius_right_);
+    if (enabled["mid"] && msg_mid) {
+        try {
+            pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_mid(new pcl::PointCloud<pcl::PointXYZI>());
+            cloud_mid->reserve(10000);
+            processCloud(msg_mid, trans_mid_, cloud_mid);
+            *merged_cloud += *cloud_mid;
+            publishCalibratedCloud(cloud_mid, msg_mid->header.stamp, pub_mid_calib_);
+        } catch (const std::exception& e) {
+            ROS_WARN_THROTTLE(5.0, "[Sensor Input] Exception processing mid: %s", e.what());
+        } catch (...) {
+            ROS_WARN_THROTTLE(5.0, "[Sensor Input] Unknown exception processing mid.");
         }
-        *merged_cloud += *cloud_right;
+    }
+
+    if (enabled["left"] && msg_left) {
+        try {
+            pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_left(new pcl::PointCloud<pcl::PointXYZI>());
+            cloud_left->reserve(5000);
+            processScan(msg_left, trans_left_, cloud_left);
+            publishCalibratedCloud(cloud_left, msg_left->header.stamp, pub_left_calib_);
+            if (filter_radius_left_ > 0.0) {
+                filterByRadius(cloud_left, filter_radius_left_);
+            }
+            *merged_cloud += *cloud_left;
+        } catch (const std::exception& e) {
+            ROS_WARN_THROTTLE(5.0, "[Sensor Input] Exception processing left: %s", e.what());
+        } catch (...) {
+            ROS_WARN_THROTTLE(5.0, "[Sensor Input] Unknown exception processing left.");
+        }
+    }
+
+    if (enabled["right"] && msg_right) {
+        try {
+            pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_right(new pcl::PointCloud<pcl::PointXYZI>());
+            cloud_right->reserve(5000);
+            processScan(msg_right, trans_right_, cloud_right);
+            publishCalibratedCloud(cloud_right, msg_right->header.stamp, pub_right_calib_);
+            if (filter_radius_right_ > 0.0) {
+                filterByRadius(cloud_right, filter_radius_right_);
+            }
+            *merged_cloud += *cloud_right;
+        } catch (const std::exception& e) {
+            ROS_WARN_THROTTLE(5.0, "[Sensor Input] Exception processing right: %s", e.what());
+        } catch (...) {
+            ROS_WARN_THROTTLE(5.0, "[Sensor Input] Unknown exception processing right.");
+        }
     }
 
     // 设置点云属性
@@ -247,10 +278,19 @@ void SensorInputProcessor::loadBehaviorConfigs() {
 void SensorInputProcessor::processScan(const sensor_msgs::LaserScan::ConstPtr& scan_msg,
                                        const Eigen::Affine3f& transform,
                                        pcl::PointCloud<pcl::PointXYZI>::Ptr& out_cloud) {
+    if (!scan_msg || scan_msg->ranges.empty()) {
+        return;
+    }
     sensor_msgs::PointCloud2 temp_cloud2;
     try { projector_.projectLaser(*scan_msg, temp_cloud2); } catch (...) { return; }
+    if (temp_cloud2.data.empty()) {
+        return;
+    }
     pcl::PointCloud<pcl::PointXYZI> raw_pcl;
     pcl::fromROSMsg(temp_cloud2, raw_pcl);
+    if (raw_pcl.empty()) {
+        return;
+    }
     pcl::transformPointCloud(raw_pcl, *out_cloud, transform);
 }
 
@@ -272,8 +312,14 @@ void SensorInputProcessor::filterByRadius(pcl::PointCloud<pcl::PointXYZI>::Ptr& 
 void SensorInputProcessor::processCloud(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg,
                                         const Eigen::Affine3f& transform,
                                         pcl::PointCloud<pcl::PointXYZI>::Ptr& out_cloud) {
+    if (!cloud_msg || cloud_msg->data.empty()) {
+        return;
+    }
     pcl::PointCloud<pcl::PointXYZI> raw_pcl;
     pcl::fromROSMsg(*cloud_msg, raw_pcl);
+    if (raw_pcl.empty()) {
+        return;
+    }
     pcl::transformPointCloud(raw_pcl, *out_cloud, transform);
 }
 
