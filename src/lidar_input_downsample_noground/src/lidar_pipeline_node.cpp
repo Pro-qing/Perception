@@ -13,7 +13,6 @@
  *   发布: /points_raw, /points_downsampled, /lidar_no_ground, /lidar_ground
  *          /points_main_calibration, /points_mid_calibration,
  *          /points_left_calibration, /points_right_calibration
- *          /pipeline/metrics (监控指标)
  *          /car (车身 Marker，可选)
  */
 
@@ -27,7 +26,6 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <lidar_pipeline_monitor/PipelineMetrics.h>
 
 #include <lidar_input_downsample_noground/sensor_input.h>
 #include <lidar_input_downsample_noground/downsample.h>
@@ -36,6 +34,7 @@
 #include <string>
 #include <map>
 #include <mutex>
+#include <stdexcept>
 
 using namespace sensor_msgs;
 using namespace message_filters;
@@ -71,7 +70,6 @@ public:
         pub_points_downsampled_= nh_.advertise<PointCloud2>(topic_output_downsampled_, 10);
         pub_no_ground_         = nh_.advertise<PointCloud2>(topic_output_no_ground_, 10);
         pub_ground_            = nh_.advertise<PointCloud2>(topic_output_ground_, 10);
-        pub_metrics_           = nh_.advertise<lidar_pipeline_monitor::PipelineMetrics>("/pipeline/metrics", 100);
 
         // ---- 订阅者 + 四路时间同步 ----
         sub_16_   = new Subscriber<PointCloud2>(nh_, topic_main_,  1, ros::TransportHints().tcpNoDelay());
@@ -121,7 +119,6 @@ private:
     ros::Publisher pub_points_downsampled_;
     ros::Publisher pub_no_ground_;
     ros::Publisher pub_ground_;
-    ros::Publisher pub_metrics_;
 
     // ---- 传感器订阅者 ----
     Subscriber<PointCloud2>* sub_16_;
@@ -146,25 +143,15 @@ private:
         }
         int behavior_id = static_cast<int>(msg->wpsattr.routeBehavior[0]);
 
-        // 快速检查是否变化 (读操作需要锁)
-        {
-            std::lock_guard<std::mutex> lock(behavior_mutex_);
-            if (behavior_id == current_behavior_id_) {
-                return;
-            }
-            current_behavior_id_ = behavior_id;
+        // 锁必须覆盖整个行为更新流程，包括 setSensorEnabled 写入 sensor_enabled_，
+        // 否则与 syncCallback 中 processInput 读取 sensor_enabled_ 存在数据竞争，
+        // 并发读写 std::map 会导致内部红黑树指针损坏，引发 SIGSEGV。
+        std::lock_guard<std::mutex> lock(behavior_mutex_);
+        if (behavior_id == current_behavior_id_) {
+            return;
         }
+        current_behavior_id_ = behavior_id;
 
-        // 从 processor 获取行为配置并更新
-        // behavior_configs_ 在 processor 内部，在构造后不再修改，所以读取不需要锁
-        // 但 sensor_enabled_ 的更新需要通过 processor 的 setSensorEnabled
-        // 这里需要查找 behavior_configs_，我们通过 processor 获取
-        // 由于 behavior_configs_ 在构造时加载后不变，可以直接查找
-
-        // 注意：我们需要一种方式从 processor 获取 behavior_configs_
-        // 为了保持接口简洁，我们在 node 中也维护一份 behavior_configs_
-        // 但实际上 processor 已经加载了，我们通过重新从 YAML 读取来获取
-        // 最简单的方案：在 node 中也加载一份 behavior_configs_
         updateBehaviorConfig(behavior_id);
     }
 
@@ -198,8 +185,12 @@ private:
                       const PointCloud2::ConstPtr& msg_mid,
                       const LaserScan::ConstPtr&   msg_left,
                       const LaserScan::ConstPtr&   msg_right)
-    {
-        ros::Time cb_start = ros::Time::now();
+    try {
+        // 安全检查：消息不能为空
+        if (!msg_16 || !msg_mid || !msg_left || !msg_right) {
+            ROS_WARN_THROTTLE(5.0, "[Lidar Pipeline] Received null message, skipping.");
+            return;
+        }
 
         // ========== Stage 1: Sensor Input (四路合并 + 标定变换) ==========
         pcl::PointCloud<pcl::PointXYZI>::Ptr merged_cloud;
@@ -209,10 +200,14 @@ private:
             return;
         }
 
-        ros::Time after_input = ros::Time::now();
+        // 安全检查：合并点云不能为空
+        if (!merged_cloud || merged_cloud->empty()) {
+            ROS_WARN_THROTTLE(5.0, "[Lidar Pipeline] Merged cloud is empty after input, skipping.");
+            return;
+        }
 
         // 发布 /points_raw (保持原有话题不变)
-        if (pub_points_raw_.getNumSubscribers() > 0) {
+        if (pub_points_raw_.getNumSubscribers() > 0 && merged_cloud && !merged_cloud->empty()) {
             PointCloud2 output_msg;
             pcl::toROSMsg(*merged_cloud, output_msg);
             output_msg.header.stamp    = stamp;
@@ -226,10 +221,14 @@ private:
             return;
         }
 
-        ros::Time after_downsample = ros::Time::now();
+        // 安全检查：降采样后点云不能为空
+        if (!merged_cloud || merged_cloud->empty()) {
+            ROS_WARN_THROTTLE(5.0, "[Lidar Pipeline] Cloud is empty after downsample, skipping.");
+            return;
+        }
 
         // 发布 /points_downsampled (保持原有话题不变)
-        if (pub_points_downsampled_.getNumSubscribers() > 0) {
+        if (pub_points_downsampled_.getNumSubscribers() > 0 && merged_cloud && !merged_cloud->empty()) {
             PointCloud2 output_msg;
             pcl::toROSMsg(*merged_cloud, output_msg);
             output_msg.header.stamp    = stamp;
@@ -266,50 +265,10 @@ private:
             }
         }
 
-        ros::Time cb_end = ros::Time::now();
-
-        // ========== 发布监控指标 ==========
-        // 总指标
-        lidar_pipeline_monitor::PipelineMetrics metric;
-        metric.header.stamp = stamp;
-        metric.node_name = "1+2+3_pipeline";
-        metric.transmission_delay = (cb_start - stamp).toSec() * 1000.0;
-        metric.processing_time = (cb_end - cb_start).toSec() * 1000.0;
-        metric.total_latency = (cb_end - stamp).toSec() * 1000.0;
-        pub_metrics_.publish(metric);
-
-        // Stage 1 指标
-        {
-            lidar_pipeline_monitor::PipelineMetrics m;
-            m.header.stamp = stamp;
-            m.node_name = "1_input";
-            m.transmission_delay = (cb_start - stamp).toSec() * 1000.0;
-            m.processing_time = (after_input - cb_start).toSec() * 1000.0;
-            m.total_latency = (after_input - stamp).toSec() * 1000.0;
-            pub_metrics_.publish(m);
-        }
-
-        // Stage 2 指标
-        {
-            lidar_pipeline_monitor::PipelineMetrics m;
-            m.header.stamp = stamp;
-            m.node_name = "2_downsample";
-            m.transmission_delay = (after_input - stamp).toSec() * 1000.0;
-            m.processing_time = (after_downsample - after_input).toSec() * 1000.0;
-            m.total_latency = (after_downsample - stamp).toSec() * 1000.0;
-            pub_metrics_.publish(m);
-        }
-
-        // Stage 3 指标
-        {
-            lidar_pipeline_monitor::PipelineMetrics m;
-            m.header.stamp = stamp;
-            m.node_name = "3_no_ground";
-            m.transmission_delay = (after_downsample - stamp).toSec() * 1000.0;
-            m.processing_time = (cb_end - after_downsample).toSec() * 1000.0;
-            m.total_latency = (cb_end - stamp).toSec() * 1000.0;
-            pub_metrics_.publish(m);
-        }
+    } catch (const std::exception& e) {
+        ROS_ERROR("[Lidar Pipeline] Exception in syncCallback: %s", e.what());
+    } catch (...) {
+        ROS_ERROR("[Lidar Pipeline] Unknown exception in syncCallback");
     }
 };
 
