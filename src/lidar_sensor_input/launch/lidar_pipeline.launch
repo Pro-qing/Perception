@@ -1,6 +1,15 @@
 <launch>
     <!-- 1+2+3. 整合节点: 雷达输入 + 降采样 + 地面分割 (消除中间 ROS/PCL 转换) -->
-    <include file="$(find lidar_input_downsample_noground)/launch/lidar_pipeline.launch" />
+    <!-- <include file="$(find lidar_input_downsample_noground)/launch/lidar_pipeline.launch" /> -->
+
+    <!-- 1. 启动雷达输入 -->
+    <include file="$(find lidar_sensor_input)/launch/lidar_sensor_input.launch" />
+
+    <!-- 2. 启动降采样 -->
+    <include file="$(find lidar_downsample)/launch/lidar_downsample.launch" />
+
+    <!-- 3. 启动地面分割 -->
+    <include file="$(find lidar_no_ground)/launch/lidar_no_ground.launch" />
 
     <!-- 4. 启动充电桩过滤 -->
     <include file="$(find lidar_no_charge)/launch/lidar_no_charge.launch" />
