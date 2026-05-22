@@ -16,7 +16,6 @@
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <tf2/LinearMath/Quaternion.h>
-#include <lidar_pipeline_monitor/PipelineMetrics.h>
 
 #include <string>
 #include <map>
