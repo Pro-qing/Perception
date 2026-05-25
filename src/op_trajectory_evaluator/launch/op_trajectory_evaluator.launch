@@ -1,0 +1,117 @@
+<launch>
+  <!-- ============================================ -->
+  <!-- Common Parameters (from op_common_params)    -->
+  <!-- ============================================ -->
+  <arg name="mapSource"         default="0" /> <!-- Autoware=0, Vector Map Folder=1, kml=2 -->
+  <arg name="mapFileName"       default="" />
+
+  <arg name="pathDensity"       default="0.5" />
+  <arg name="rollOutDensity"    default="0.5" />
+  <arg name="rollOutsNumber"    default="6"    />
+
+  <arg name="maxVelocity"       default="6.0" />
+  <arg name="minVelocity"       default="0.1" />
+  <arg name="maxLocalPlanDistance" default="50" />
+  <arg name="horizonDistance"   default="200"  />
+
+  <arg name="minFollowingDistance"     default="35.0"  />
+  <arg name="minDistanceToAvoid"      default="20.0" />
+  <arg name="maxDistanceToAvoid"      default="5.0"  />
+  <arg name="speedProfileFactor"      default="1.2"  />
+
+  <arg name="horizontalSafetyDistance" default="1.2"  />
+  <arg name="verticalSafetyDistance"   default="0.8"  />
+
+  <arg name="enableSwerving"             default="true"  />
+  <arg name="enableFollowing"            default="true" />
+  <arg name="enableTrafficLightBehavior" default="false" />
+  <arg name="enableStopSignBehavior"     default="false" />
+  <arg name="enableLaneChange"           default="false" />
+
+  <arg name="width"           default="1.85"  />
+  <arg name="length"          default="4.2"  />
+  <arg name="wheelBaseLength" default="2.7"  />
+  <arg name="turningRadius"   default="5.2"  />
+  <arg name="maxSteerAngle"   default="0.45" />
+  <arg name="maxAcceleration" default="3.0" />
+  <arg name="maxDeceleration" default="-3.0" />
+
+  <arg name="velocitySource"  default="2" /> <!-- 0=Odometry, 1=current_velocity, 2=can_info -->
+
+  <!-- ============================================ -->
+  <!-- Trajectory Evaluator Specific Parameters    -->
+  <!-- ============================================ -->
+  <arg name="enablePrediction"         default="false" />
+
+  <!-- ============================================ -->
+  <!-- Wall Filter Parameters (turn intensity)     -->
+  <!-- ============================================ -->
+  <arg name="enableWallFilter"            default="true"  />
+  <arg name="wallTurnIntensityLevel1"     default="0.05"  />
+  <arg name="wallTurnIntensityLevel2"     default="0.2"   />
+  <arg name="wallTurnIntensityLevel3"     default="0.5"   />
+  <arg name="wallSkipDistGainLevel1"      default="1.5"   />
+  <arg name="wallSkipDistGainLevel2"      default="2.5"   />
+  <arg name="wallSkipDistGainLevel3"      default="4.0"   />
+  <arg name="wallSafetyAttenLevel2"       default="0.3"   />
+  <arg name="wallSafetyAttenLevel3"       default="0.6"   />
+  <arg name="wallBaseSkipDistance"        default="50.0"  />
+
+  <!-- ============================================ -->
+  <!-- If op_common_params node is already running  -->
+  <!-- in another launch, set loadCommonParams to   -->
+  <!-- false to avoid duplicate params.             -->
+  <!-- ============================================ -->
+  <arg name="loadCommonParams" default="true" />
+
+  <!-- Load common parameters to parameter server -->
+  <group if="$(arg loadCommonParams)">
+    <param name="op_common_params/mapSource"                value="$(arg mapSource)" />
+    <param name="op_common_params/mapFileName"              value="$(arg mapFileName)" />
+    <param name="op_common_params/pathDensity"              value="$(arg pathDensity)" />
+    <param name="op_common_params/rollOutDensity"           value="$(arg rollOutDensity)" />
+    <param name="op_common_params/rollOutsNumber"           value="$(arg rollOutsNumber)" />
+    <param name="op_common_params/maxVelocity"              value="$(arg maxVelocity)" />
+    <param name="op_common_params/minVelocity"              value="$(arg minVelocity)" />
+    <param name="op_common_params/maxLocalPlanDistance"     value="$(arg maxLocalPlanDistance)" />
+    <param name="op_common_params/horizonDistance"          value="$(arg horizonDistance)" />
+    <param name="op_common_params/minFollowingDistance"     value="$(arg minFollowingDistance)" />
+    <param name="op_common_params/minDistanceToAvoid"       value="$(arg minDistanceToAvoid)" />
+    <param name="op_common_params/maxDistanceToAvoid"       value="$(arg maxDistanceToAvoid)" />
+    <param name="op_common_params/speedProfileFactor"      value="$(arg speedProfileFactor)" />
+    <param name="op_common_params/horizontalSafetyDistance" value="$(arg horizontalSafetyDistance)" />
+    <param name="op_common_params/verticalSafetyDistance"   value="$(arg verticalSafetyDistance)" />
+    <param name="op_common_params/enableSwerving"           value="$(arg enableSwerving)" />
+    <param name="op_common_params/enableFollowing"          value="$(arg enableFollowing)" />
+    <param name="op_common_params/enableTrafficLightBehavior" value="$(arg enableTrafficLightBehavior)" />
+    <param name="op_common_params/enableStopSignBehavior"   value="$(arg enableStopSignBehavior)" />
+    <param name="op_common_params/enableLaneChange"         value="$(arg enableLaneChange)" />
+    <param name="op_common_params/width"                    value="$(arg width)" />
+    <param name="op_common_params/length"                   value="$(arg length)" />
+    <param name="op_common_params/wheelBaseLength"          value="$(arg wheelBaseLength)" />
+    <param name="op_common_params/turningRadius"            value="$(arg turningRadius)" />
+    <param name="op_common_params/maxSteerAngle"            value="$(arg maxSteerAngle)" />
+    <param name="op_common_params/maxAcceleration"          value="$(arg maxAcceleration)" />
+    <param name="op_common_params/maxDeceleration"          value="$(arg maxDeceleration)" />
+    <param name="op_motion_predictor/velocitySource"        value="$(arg velocitySource)" />
+  </group>
+
+  <!-- Trajectory Evaluator Node -->
+  <node pkg="op_trajectory_evaluator" type="op_trajectory_evaluator" name="op_trajectory_evaluator" output="screen">
+    <param name="enablePrediction"         value="$(arg enablePrediction)" />
+    <param name="horizontalSafetyDistance" value="$(arg horizontalSafetyDistance)" />
+    <param name="verticalSafetyDistance"   value="$(arg verticalSafetyDistance)" />
+    <!-- Wall filter parameters -->
+    <param name="enableWallFilter"            value="$(arg enableWallFilter)" />
+    <param name="wallTurnIntensityLevel1"     value="$(arg wallTurnIntensityLevel1)" />
+    <param name="wallTurnIntensityLevel2"     value="$(arg wallTurnIntensityLevel2)" />
+    <param name="wallTurnIntensityLevel3"     value="$(arg wallTurnIntensityLevel3)" />
+    <param name="wallSkipDistGainLevel1"      value="$(arg wallSkipDistGainLevel1)" />
+    <param name="wallSkipDistGainLevel2"      value="$(arg wallSkipDistGainLevel2)" />
+    <param name="wallSkipDistGainLevel3"      value="$(arg wallSkipDistGainLevel3)" />
+    <param name="wallSafetyAttenLevel2"       value="$(arg wallSafetyAttenLevel2)" />
+    <param name="wallSafetyAttenLevel3"       value="$(arg wallSafetyAttenLevel3)" />
+    <param name="wallBaseSkipDistance"        value="$(arg wallBaseSkipDistance)" />
+  </node>
+
+</launch>
