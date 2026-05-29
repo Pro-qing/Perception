@@ -256,3 +256,164 @@ bool ObstacleDetection::robustElevatorCheck(const std::string& data) {
 
     return result;
 }
+
+/**
+ * @brief 库位外围聚类检测 - Layer 2补充检测
+ *
+ * 当Layer 1(内部区域检测)未检测到障碍物时触发。
+ * 对mid360预处理后的点云做欧几里得聚类，检查是否有聚类"贴着"库位边界框外侧。
+ * 独立实现，不调用电梯场景的performClustering()。
+ *
+ * 流程:
+ * 1. 对mid360点云做欧几里得聚类
+ * 2. 对每个cluster逐个过滤(点数、z范围、重心高度)
+ * 3. 将聚类重心变换到目标点局部坐标系
+ * 4. 计算重心到库位边界框的距离
+ * 5. 距离 < proximity_threshold → 判定有邻近障碍物
+ */
+bool ObstacleDetection::checkGarageProximityCluster(const PointCloud::Ptr& mid_cloud,
+                                                     const std_msgs::Header& header) {
+    if (!mid_cloud || mid_cloud->empty()) {
+        return false;
+    }
+
+    // 获取目标点在velodyne坐标系下的位姿
+    geometry_msgs::Pose transformed_target_pose = transformTargetPoseToVelodyne(targetPoint_.map_pose);
+
+    Eigen::Vector3f target_position(
+        transformed_target_pose.position.x,
+        transformed_target_pose.position.y,
+        transformed_target_pose.position.z
+    );
+
+    Eigen::Quaternionf target_orientation(
+        transformed_target_pose.orientation.w,
+        transformed_target_pose.orientation.x,
+        transformed_target_pose.orientation.y,
+        transformed_target_pose.orientation.z
+    );
+    target_orientation.normalize();
+
+    Eigen::Matrix3f rotation_matrix = target_orientation.toRotationMatrix();
+    Eigen::Matrix3f inverse_rotation_matrix = rotation_matrix.inverse();
+
+    // 库位边界参数
+    double min_x = carports_min_x_, max_x = carports_max_x_;
+    double min_y = carports_min_y_, max_y = carports_max_y_;
+    double min_z = carports_min_z_, max_z = carports_max_z_;
+
+    // ========== 步骤1: 独立欧几里得聚类(不调用电梯的performClustering) ==========
+    pcl::search::KdTree<PointT>::Ptr tree(new pcl::search::KdTree<PointT>);
+    tree->setInputCloud(mid_cloud);
+
+    pcl::EuclideanClusterExtraction<PointT> ec;
+    ec.setClusterTolerance(garage_cluster_tolerance_);
+    ec.setMinClusterSize(garage_cluster_min_points_);
+    ec.setMaxClusterSize(garage_cluster_max_points_);
+    ec.setSearchMethod(tree);
+    ec.setInputCloud(mid_cloud);
+
+    std::vector<pcl::PointIndices> cluster_indices;
+    ec.extract(cluster_indices);
+
+    if (garage_proximity_debug_) {
+        ROS_INFO("[GarageProximity] Found %lu clusters from %lu mid points",
+                 cluster_indices.size(), mid_cloud->size());
+    }
+
+    if (cluster_indices.empty()) {
+        return false;
+    }
+
+    // ========== 步骤2-4: 逐个cluster过滤+邻近判断 ==========
+    for (size_t ci = 0; ci < cluster_indices.size(); ci++) {
+        const auto& indices = cluster_indices[ci].indices;
+
+        // 提取聚类点云并计算边界
+        PointT min_pt, max_pt;
+        min_pt.x = min_pt.y = min_pt.z = std::numeric_limits<float>::max();
+        max_pt.x = max_pt.y = max_pt.z = std::numeric_limits<float>::lowest();
+
+        Eigen::Vector3f centroid(0.0f, 0.0f, 0.0f);
+        for (const auto& idx : indices) {
+            const auto& pt = mid_cloud->points[idx];
+            centroid.x() += pt.x;
+            centroid.y() += pt.y;
+            centroid.z() += pt.z;
+            if (pt.x < min_pt.x) min_pt.x = pt.x;
+            if (pt.y < min_pt.y) min_pt.y = pt.y;
+            if (pt.z < min_pt.z) min_pt.z = pt.z;
+            if (pt.x > max_pt.x) max_pt.x = pt.x;
+            if (pt.y > max_pt.y) max_pt.y = pt.y;
+            if (pt.z > max_pt.z) max_pt.z = pt.z;
+        }
+        centroid /= static_cast<float>(indices.size());
+
+        // 过滤条件2a: z范围检查(过滤地面合并的巨型cluster)
+        double z_range = max_pt.z - min_pt.z;
+        if (z_range > garage_cluster_max_z_range_) {
+            if (garage_proximity_debug_) {
+                ROS_INFO("[GarageProximity] Cluster %lu REJECTED: z_range=%.2f > max=%.2f, points=%lu",
+                         ci, z_range, garage_cluster_max_z_range_, indices.size());
+            }
+            continue;
+        }
+
+        // 过滤条件2b: 重心z检查(过滤残余地面)
+        if (centroid.z() < garage_cluster_min_centroid_z_) {
+            if (garage_proximity_debug_) {
+                ROS_INFO("[GarageProximity] Cluster %lu REJECTED: centroid_z=%.2f < min=%.2f, points=%lu",
+                         ci, centroid.z(), garage_cluster_min_centroid_z_, indices.size());
+            }
+            continue;
+        }
+
+        // ========== 步骤3: 将聚类重心变换到目标点局部坐标系 ==========
+        Eigen::Vector3f centroid_local = inverse_rotation_matrix * (centroid - target_position);
+
+        // 计算重心到库位边界框的最近距离(AABB最近点距离)
+        double dx = std::max(0.0, std::max(min_x - centroid_local.x(), centroid_local.x() - max_x));
+        double dy = std::max(0.0, std::max(min_y - centroid_local.y(), centroid_local.y() - max_y));
+        double distance_to_box = std::sqrt(dx * dx + dy * dy);
+
+        // 额外: 检查聚类是否有部分点进入扩展边界框
+        bool any_point_in_expanded = false;
+        double expand_min_x = min_x - garage_expand_margin_x_;
+        double expand_max_x = max_x + garage_expand_margin_x_;
+        double expand_min_y = min_y - garage_expand_margin_y_;
+        double expand_max_y = max_y + garage_expand_margin_y_;
+
+        for (const auto& idx : indices) {
+            const auto& pt = mid_cloud->points[idx];
+            Eigen::Vector3f p(pt.x, pt.y, pt.z);
+            Eigen::Vector3f p_local = inverse_rotation_matrix * (p - target_position);
+
+            if (p_local.x() >= expand_min_x && p_local.x() <= expand_max_x &&
+                p_local.y() >= expand_min_y && p_local.y() <= expand_max_y &&
+                p_local.z() >= min_z && p_local.z() <= max_z) {
+                any_point_in_expanded = true;
+                break;
+            }
+        }
+
+        if (garage_proximity_debug_) {
+            ROS_INFO("[GarageProximity] Cluster %lu: points=%lu, z_range=%.2f, centroid_z=%.2f, "
+                     "centroid_local=(%.2f,%.2f,%.2f), dist_to_box=%.2f, in_expanded=%s",
+                     ci, indices.size(), z_range, centroid.z(),
+                     centroid_local.x(), centroid_local.y(), centroid_local.z(),
+                     distance_to_box, any_point_in_expanded ? "YES" : "NO");
+        }
+
+        // ========== 步骤5: 邻近判断 ==========
+        // 条件1: 重心到库位框的距离 < proximity_threshold
+        // 条件2: 或者有部分点进入了扩展边界框
+        if (distance_to_box < garage_proximity_threshold_ || any_point_in_expanded) {
+            ROS_INFO("[GarageProximity] DETECTED: Cluster %lu with %lu points, dist=%.2f, "
+                     "z_range=%.2f, centroid_z=%.2f",
+                     ci, indices.size(), distance_to_box, z_range, centroid.z());
+            return true;
+        }
+    }
+
+    return false;
+}

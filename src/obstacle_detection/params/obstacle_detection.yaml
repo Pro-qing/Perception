@@ -6,6 +6,8 @@
 #   2. 电梯检测区域边界框(在目标点局部坐标系下)
 #   3. 库位检测区域边界框(在目标点局部坐标系下)
 #   4. 车体轮廓多边形(用于过滤车辆自身的激光反射点)
+#   5. 库位外围聚类检测参数(Layer 2)
+#   6. 调试参数
 # ============================================================
 
 # ---------- 中距雷达标定参数 ----------
@@ -65,3 +67,25 @@ car_rect:
   - {x: 0.60, y: 1.00}     # 重复顶点
 car_min_z: -1.90            # 车体Z轴最小值(米) - 底盘下方
 car_max_z: 0.50             # 车体Z轴最大值(米) - 车顶
+
+# ========== 库位外围聚类检测参数(Layer 2) ==========
+# 当大型障碍物完全占据库位入口，激光点落在库位框外时，
+# Layer 1(内部区域检测)无法检测到，此时触发Layer 2补充检测。
+# 仅对mid360预处理后的点云做聚类(独立于电梯聚类)。
+garage_enable_proximity_cluster: true    # 是否启用外围聚类检测
+garage_cluster_tolerance: 0.2           # 聚类容差(米)，同一物体的点间距阈值
+garage_cluster_min_points: 8            # 最小聚类点数，过滤散射噪声
+garage_cluster_max_points: 300          # 最大聚类点数，过滤墙壁等大结构
+garage_cluster_max_z_range: 1.0         # 聚类z范围上限(米)，过滤地面合并的巨型cluster
+garage_cluster_min_centroid_z: 0.05     # 聚类重心最低高度(米)，过滤残余地面
+garage_expand_margin_x: 0.5            # X方向扩展边界(米)，检测库位入口附近区域
+garage_expand_margin_y: 0.3            # Y方向扩展边界(米)
+garage_proximity_threshold: 0.3         # 聚类到库位框最大距离(米)，低于此值判定为邻近障碍物
+
+# ========== 调试参数 ==========
+# garage_proximity_debug: 外围聚类检测调试日志
+#   true  → 输出每个cluster的详细过滤信息(点数、z范围、重心、距离等)
+#   false → 仅输出检测结果(默认)
+# log_level: ROS日志级别(DEBUG/INFO/WARN/ERROR/FATAL)
+garage_proximity_debug: false
+# log_level: "DEBUG"

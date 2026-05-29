@@ -146,6 +146,18 @@ private:
     double garage_enable_distance_;     ///< 库位检测启用距离(米)
     std::deque<bool> garage_detection_history_;  ///< 库位检测历史记录(滑动窗口)
 
+    // ============ 库位外围聚类检测参数(Layer 2) ============
+    bool garage_enable_proximity_cluster_;       ///< 是否启用外围聚类检测
+    double garage_cluster_tolerance_;            ///< 库位聚类容差(米)
+    int garage_cluster_min_points_;              ///< 最小聚类点数
+    int garage_cluster_max_points_;              ///< 最大聚类点数(过滤墙壁等大结构)
+    double garage_cluster_max_z_range_;          ///< 聚类z范围上限(米)
+    double garage_cluster_min_centroid_z_;       ///< 聚类重心最低高度(米)
+    double garage_expand_margin_x_;              ///< X方向扩展边界(米)
+    double garage_expand_margin_y_;              ///< Y方向扩展边界(米)
+    double garage_proximity_threshold_;          ///< 聚类到库位框最大距离(米)
+    bool garage_proximity_debug_;                ///< 外围聚类调试日志开关
+
     // ============ YAML动态重载 ============
     std::string yaml_file_path_;        ///< yaml配置文件路径(从launch传入)
     time_t last_yaml_mod_time_;         ///< yaml文件上次修改时间戳
@@ -444,6 +456,21 @@ private:
      * @return velodyne坐标系下的位姿
      */
     geometry_msgs::Pose transformTargetPoseToVelodyne(const geometry_msgs::PoseStamped& input_pose);
+
+    /**
+     * @brief 库位外围聚类检测 - Layer 2补充检测
+     * @param mid_cloud 预处理后的mid360点云(已去除地面和车体)
+     * @param header 消息头
+     * @return 是否检测到库位外围的邻近障碍物
+     *
+     * 当Layer 1(内部区域检测)未检测到障碍物时触发。
+     * 对mid360点云做欧几里得聚类，检查是否有聚类"贴着"库位边界框外侧。
+     * 通过多重过滤条件(点数、z范围、重心高度、邻近距离)确保检测准确性。
+     *
+     * 独立实现，不调用电梯场景的performClustering()。
+     */
+    bool checkGarageProximityCluster(const PointCloud::Ptr& mid_cloud,
+                                     const std_msgs::Header& header);
 };
 
 

@@ -51,6 +51,18 @@ ObstacleDetection::ObstacleDetection(ros::NodeHandle& nh, ros::NodeHandle& priva
     private_nh_.param<int>("garage_confirm_threshold", garage_confirm_threshold_, 3);
     private_nh_.param<double>("garage_enable_distance", garage_enable_distance_, 6.0);
 
+    // ========== 库位外围聚类检测参数(Layer 2) ==========
+    private_nh_.param<bool>("garage_enable_proximity_cluster", garage_enable_proximity_cluster_, true);
+    private_nh_.param<double>("garage_cluster_tolerance", garage_cluster_tolerance_, 0.2);
+    private_nh_.param<int>("garage_cluster_min_points", garage_cluster_min_points_, 8);
+    private_nh_.param<int>("garage_cluster_max_points", garage_cluster_max_points_, 300);
+    private_nh_.param<double>("garage_cluster_max_z_range", garage_cluster_max_z_range_, 1.0);
+    private_nh_.param<double>("garage_cluster_min_centroid_z", garage_cluster_min_centroid_z_, 0.05);
+    private_nh_.param<double>("garage_expand_margin_x", garage_expand_margin_x_, 0.5);
+    private_nh_.param<double>("garage_expand_margin_y", garage_expand_margin_y_, 0.3);
+    private_nh_.param<double>("garage_proximity_threshold", garage_proximity_threshold_, 0.3);
+    private_nh_.param<bool>("garage_proximity_debug", garage_proximity_debug_, false);
+
     // ========== 创建订阅者(双雷达时间同步) ==========
     mid_cloud_sub_.subscribe(nh_, points_mid_topic_, 5);
     tip_cloud_sub_.subscribe(nh_, "/fused_points_tip", 5);
@@ -202,8 +214,16 @@ void ObstacleDetection::syncCloudCallback(const sensor_msgs::PointCloud2::ConstP
         publishPointClouds(mid_result.ground_cloud, fused_cloud, cluster_indices, fused_msg.header);
         publishObstacleInfo(obstacles, fused_msg.header);
     } else if (targetPoint_.type_e == POINT_TYPE_GARAGE) {
-        // 库位场景: 滑动窗口防抖
-        garage_detection_history_.push_back(target_region_has_noise_);
+        // 库位场景: 两层检测
+        bool garage_detected = target_region_has_noise_;  // Layer 1: 内部区域检测
+
+        // Layer 2: 外围聚类补充检测(仅当Layer 1未检测到时触发)
+        if (!garage_detected && garage_enable_proximity_cluster_) {
+            garage_detected = checkGarageProximityCluster(mid_result.filtered_cloud, fused_msg.header);
+        }
+
+        // 滑动窗口防抖(对综合结果)
+        garage_detection_history_.push_back(garage_detected);
         while (static_cast<int>(garage_detection_history_.size()) > garage_history_size_) {
             garage_detection_history_.pop_front();
         }
