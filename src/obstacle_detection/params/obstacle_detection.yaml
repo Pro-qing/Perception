@@ -88,4 +88,11 @@ garage_proximity_threshold: 0.3         # 聚类到库位框最大距离(米)，
 #   false → 仅输出检测结果(默认)
 # log_level: ROS日志级别(DEBUG/INFO/WARN/ERROR/FATAL)
 garage_proximity_debug: false
+
+# ========== 状态保持(施密特触发器)参数 ==========
+# garage_clear_threshold: 清除阈值，窗口内检测到噪声的帧数<=此值时才清除障碍物标志
+# 与 confirm_threshold(确认阈值)形成迟滞区间，防止状态跳变
+# 例: history_size=5, confirm=3, clear=1 → 确认需>=3帧，清除需<=1帧，中间2帧保持不变
+garage_clear_threshold: 1
+
 # log_level: "DEBUG"

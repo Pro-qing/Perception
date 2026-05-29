@@ -50,6 +50,7 @@
         <param name="min_region_points" value="5" />         <!--  区域内点数低于此值不判定为障碍物 -->
         <param name="garage_history_size" value="5" />       <!--  滑动窗口大小(帧数) -->
         <param name="garage_confirm_threshold" value="3" />  <!--  窗口内需有N帧检测到才确认 -->
+        <param name="garage_clear_threshold" value="1" />    <!--  窗口内需<=N帧检测到才清除(施密特触发器) -->
         <param name="garage_enable_distance" value="6.0" />  <!--  库位检测启用距离(米) -->
 
         <!-- ========== 库位外围聚类检测参数(Layer 2) ==========

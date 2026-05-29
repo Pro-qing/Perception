@@ -122,6 +122,8 @@ private:
     ros::Publisher target_region_cloud_pub_; ///< 目标区域内点云发布
     ros::Publisher obstacle_detection_pub_;  ///< 障碍物检测状态发布(位标志)
     ros::Publisher fused_cloud_pub_;         ///< 融合后点云发布
+    ros::Publisher proximity_cloud_pub_;    ///< 外围聚类检测点云发布
+    ros::Publisher proximity_marker_pub_;   ///< 外围聚类检测可视化标记发布
 
     ros::Timer publish_timer_;               ///< 定时发布检测状态的定时器(10Hz)
     ros::Timer yaml_reload_timer_;           ///< yaml文件变更检查定时器(1Hz)
@@ -143,6 +145,7 @@ private:
     int min_region_points_;             ///< 目标区域内最小点数阈值，低于此值不判定为有障碍物
     int garage_history_size_;           ///< 库位检测滑动窗口大小(帧数)
     int garage_confirm_threshold_;      ///< 库位检测确认阈值(窗口内需有N帧检测到才确认)
+    int garage_clear_threshold_;        ///< 库位检测清除阈值(窗口内需<=N帧检测到才清除，防状态跳变)
     double garage_enable_distance_;     ///< 库位检测启用距离(米)
     std::deque<bool> garage_detection_history_;  ///< 库位检测历史记录(滑动窗口)
 

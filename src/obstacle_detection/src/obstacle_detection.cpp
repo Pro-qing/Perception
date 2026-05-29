@@ -49,6 +49,7 @@ ObstacleDetection::ObstacleDetection(ros::NodeHandle& nh, ros::NodeHandle& priva
     private_nh_.param<int>("min_region_points", min_region_points_, 5);
     private_nh_.param<int>("garage_history_size", garage_history_size_, 5);
     private_nh_.param<int>("garage_confirm_threshold", garage_confirm_threshold_, 3);
+    private_nh_.param<int>("garage_clear_threshold", garage_clear_threshold_, 2);
     private_nh_.param<double>("garage_enable_distance", garage_enable_distance_, 6.0);
 
     // ========== 库位外围聚类检测参数(Layer 2) ==========
@@ -86,6 +87,8 @@ ObstacleDetection::ObstacleDetection(ros::NodeHandle& nh, ros::NodeHandle& priva
     target_region_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("/target_region_points", 1);
     obstacle_detection_pub_ = nh_.advertise<std_msgs::UInt32>("/obstacle_detection", 1);
     fused_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("/points_fused_detection", 1);
+    proximity_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("/garage_proximity_cluster_points", 1);
+    proximity_marker_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("/garage_proximity_markers", 1);
 
     // ========== 创建定时器 ==========
     publish_timer_ = nh_.createTimer(ros::Duration(1.0/10), &ObstacleDetection::timerCallback, this, false);
@@ -222,7 +225,7 @@ void ObstacleDetection::syncCloudCallback(const sensor_msgs::PointCloud2::ConstP
             garage_detected = checkGarageProximityCluster(mid_result.filtered_cloud, fused_msg.header);
         }
 
-        // 滑动窗口防抖(对综合结果)
+        // 滑动窗口防抖(对综合结果) + 迟滞清除机制
         garage_detection_history_.push_back(garage_detected);
         while (static_cast<int>(garage_detection_history_.size()) > garage_history_size_) {
             garage_detection_history_.pop_front();
@@ -231,17 +234,26 @@ void ObstacleDetection::syncCloudCallback(const sensor_msgs::PointCloud2::ConstP
         for (const auto& detection : garage_detection_history_) {
             if (detection) noise_count++;
         }
+
+        // 施密特触发器逻辑:
+        //   确认: noise_count >= confirm_threshold (需要足够多帧检测到)
+        //   清除: noise_count <= clear_threshold   (需要足够多帧未检测到才清除)
+        //   中间状态: 保持当前状态不变(防跳变)
+        static bool garage_obstacle_confirmed = false;
         if (noise_count >= garage_confirm_threshold_) {
+            garage_obstacle_confirmed = true;
             obstacle_detection_.data |= (1 << 1);
             ROS_INFO_THROTTLE(1.0, "Garage obstacle CONFIRMED: %d/%d frames detected noise",
                               noise_count, garage_history_size_);
-        } else {
+        } else if (noise_count <= garage_clear_threshold_) {
+            garage_obstacle_confirmed = false;
             obstacle_detection_.data &= ~(1 << 1);
             if (noise_count > 0) {
                 ROS_INFO_THROTTLE(1.0, "Garage obstacle pending: %d/%d frames (threshold: %d)",
                                   noise_count, garage_history_size_, garage_confirm_threshold_);
             }
         }
+        // else: 中间状态，保持 garage_obstacle_confirmed 不变，避免状态跳变
     } else {
         obstacle_detection_.data &= ~1;
         obstacle_detection_.data &= ~(1 << 1);

@@ -411,6 +411,83 @@ bool ObstacleDetection::checkGarageProximityCluster(const PointCloud::Ptr& mid_c
             ROS_INFO("[GarageProximity] DETECTED: Cluster %lu with %lu points, dist=%.2f, "
                      "z_range=%.2f, centroid_z=%.2f",
                      ci, indices.size(), distance_to_box, z_range, centroid.z());
+
+            // ========== 可视化: 发布检测到的cluster点云 ==========
+            if (proximity_cloud_pub_.getNumSubscribers() > 0) {
+                PointCloud::Ptr detected_cluster(new PointCloud);
+                for (const auto& idx : indices) {
+                    detected_cluster->push_back(mid_cloud->points[idx]);
+                }
+                sensor_msgs::PointCloud2 cluster_msg;
+                pcl::toROSMsg(*detected_cluster, cluster_msg);
+                cluster_msg.header = header;
+                proximity_cloud_pub_.publish(cluster_msg);
+            }
+
+            // ========== 可视化: 发布聚类标记(文本+边界框) ==========
+            if (proximity_marker_pub_.getNumSubscribers() > 0) {
+                visualization_msgs::MarkerArray marker_array;
+
+                // 文本标记: 聚类信息
+                visualization_msgs::Marker text_marker;
+                text_marker.header = header;
+                text_marker.header.frame_id = target_frame_;
+                text_marker.ns = "garage_proximity";
+                text_marker.id = static_cast<int>(ci);
+                text_marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+                text_marker.action = visualization_msgs::Marker::ADD;
+                text_marker.pose.position.x = centroid.x();
+                text_marker.pose.position.y = centroid.y();
+                text_marker.pose.position.z = centroid.z() + 0.3;
+                text_marker.pose.orientation.w = 1.0;
+                text_marker.scale.z = 0.15;
+                text_marker.color.r = 1.0;
+                text_marker.color.g = 0.5;
+                text_marker.color.b = 0.0;
+                text_marker.color.a = 1.0;
+                text_marker.text = "PROXIMITY[" + std::to_string(indices.size()) + "pts,"
+                                   + "d=" + std::to_string(distance_to_box).substr(0, 4) + "m]";
+                text_marker.lifetime = ros::Duration(1.0);
+                marker_array.markers.push_back(text_marker);
+
+                // 线框标记: 聚类边界框
+                visualization_msgs::Marker bbox_marker;
+                bbox_marker.header = header;
+                bbox_marker.header.frame_id = target_frame_;
+                bbox_marker.ns = "garage_proximity_bbox";
+                bbox_marker.id = static_cast<int>(ci);
+                bbox_marker.type = visualization_msgs::Marker::LINE_LIST;
+                bbox_marker.action = visualization_msgs::Marker::ADD;
+                bbox_marker.pose.orientation.w = 1.0;
+                bbox_marker.scale.x = 0.03;
+                bbox_marker.color.r = 1.0;
+                bbox_marker.color.g = 0.5;
+                bbox_marker.color.b = 0.0;
+                bbox_marker.color.a = 1.0;
+                bbox_marker.lifetime = ros::Duration(1.0);
+
+                // 8个顶点
+                std::vector<geometry_msgs::Point> verts(8);
+                verts[0].x = min_pt.x; verts[0].y = min_pt.y; verts[0].z = min_pt.z;
+                verts[1].x = max_pt.x; verts[1].y = min_pt.y; verts[1].z = min_pt.z;
+                verts[2].x = max_pt.x; verts[2].y = max_pt.y; verts[2].z = min_pt.z;
+                verts[3].x = min_pt.x; verts[3].y = max_pt.y; verts[3].z = min_pt.z;
+                verts[4].x = min_pt.x; verts[4].y = min_pt.y; verts[4].z = max_pt.z;
+                verts[5].x = max_pt.x; verts[5].y = min_pt.y; verts[5].z = max_pt.z;
+                verts[6].x = max_pt.x; verts[6].y = max_pt.y; verts[6].z = max_pt.z;
+                verts[7].x = min_pt.x; verts[7].y = max_pt.y; verts[7].z = max_pt.z;
+
+                // 12条边
+                int edges[][2] = {{0,1},{1,2},{2,3},{3,0},{4,5},{5,6},{6,7},{7,4},{0,4},{1,5},{2,6},{3,7}};
+                for (auto& e : edges) {
+                    bbox_marker.points.push_back(verts[e[0]]);
+                    bbox_marker.points.push_back(verts[e[1]]);
+                }
+                marker_array.markers.push_back(bbox_marker);
+
+                proximity_marker_pub_.publish(marker_array);
+            }
+
             return true;
         }
     }
