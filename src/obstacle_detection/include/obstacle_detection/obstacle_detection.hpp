@@ -53,6 +53,7 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <memory>
 #include <deque>
+#include <sys/stat.h>
 
 /** @brief 点类型别名，使用XYZI格式的PCL点 */
 typedef pcl::PointXYZI PointT;
@@ -123,6 +124,7 @@ private:
     ros::Publisher fused_cloud_pub_;         ///< 融合后点云发布
 
     ros::Timer publish_timer_;               ///< 定时发布检测状态的定时器(10Hz)
+    ros::Timer yaml_reload_timer_;           ///< yaml文件变更检查定时器(1Hz)
     tf::TransformListener tf_listener_;      ///< TF变换监听器
 
     // ============ 基础参数(从launch文件加载) ============
@@ -143,6 +145,10 @@ private:
     int garage_confirm_threshold_;      ///< 库位检测确认阈值(窗口内需有N帧检测到才确认)
     double garage_enable_distance_;     ///< 库位检测启用距离(米)
     std::deque<bool> garage_detection_history_;  ///< 库位检测历史记录(滑动窗口)
+
+    // ============ YAML动态重载 ============
+    std::string yaml_file_path_;        ///< yaml配置文件路径(从launch传入)
+    time_t last_yaml_mod_time_;         ///< yaml文件上次修改时间戳
 
     // ============ 运行时状态 ============
     int8_t elevator_control_flag_;      ///< 电梯控制标志(±4表示进出电梯)
@@ -217,6 +223,17 @@ private:
      * 确保下游系统即使没有新的点云输入也能持续收到检测状态
      */
     void timerCallback(const ros::TimerEvent& event);
+
+    /**
+     * @brief yaml文件变更检查回调 - 以1Hz频率检查配置文件是否被修改
+     *
+     * 通过stat()获取文件修改时间，与上次记录的时间戳比较。
+     * 如果检测到文件被修改，调用rosparam load将新配置加载到参数服务器，
+     * 已有的getParam()调用会在下一帧自动获取新值。
+     *
+     * 使用方式: 在编辑yaml文件并保存后，最多1秒内自动生效。
+     */
+    void checkAndReloadYaml(const ros::TimerEvent& event);
 
     /**
      * @brief 双雷达同步回调 - 核心处理入口

@@ -16,6 +16,8 @@
 #include "obstacle_detection/IrregularPolygonFilter.hpp"
 #include "obstacle_detection/obstacle_detection.hpp"
 #include <boost/bind.hpp>
+#include <cstdlib>
+#include <ros/package.h>
 
 /**
  * @brief 主函数 - 节点入口
@@ -103,6 +105,26 @@ ObstacleDetection::ObstacleDetection(ros::NodeHandle& nh, ros::NodeHandle& priva
     fused_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("/points_fused_detection", 1);
 
     publish_timer_ = nh_.createTimer(ros::Duration(1.0/10), &ObstacleDetection::timerCallback, this, false);
+
+    // ========== YAML动态重载初始化 ==========
+    // 从launch文件获取yaml配置文件路径，为空则自动推导
+    private_nh_.param<std::string>("yaml_file_path", yaml_file_path_, "");
+    if (yaml_file_path_.empty()) {
+        // 如果launch文件没有显式指定yaml路径，使用功能包下的默认路径
+        std::string pkg_path = ros::package::getPath("obstacle_detection");
+        yaml_file_path_ = pkg_path + "/params/obstacle_detection.yaml";
+    }
+    // 记录文件初始修改时间
+    struct stat file_stat;
+    if (stat(yaml_file_path_.c_str(), &file_stat) == 0) {
+        last_yaml_mod_time_ = file_stat.st_mtime;
+        ROS_INFO("YAML reload: monitoring file [%s]", yaml_file_path_.c_str());
+    } else {
+        last_yaml_mod_time_ = 0;
+        ROS_WARN("YAML reload: cannot stat file [%s], auto-reload disabled", yaml_file_path_.c_str());
+    }
+    // 创建1Hz定时器，周期性检查yaml文件是否被修改
+    yaml_reload_timer_ = nh_.createTimer(ros::Duration(1.0), &ObstacleDetection::checkAndReloadYaml, this, false);
 
     target_region_has_noise_ = false;
     floor_set_ = 0;
@@ -1297,6 +1319,46 @@ bool ObstacleDetection::robustElevatorCheck(const std::string& data) {
     return result;
 }
 
+
+/**
+ * @brief yaml文件变更检查回调 - 以1Hz频率检查配置文件是否被修改
+ *
+ * 工作原理:
+ * 1. 使用stat()获取yaml文件的st_mtime(最后修改时间)
+ * 2. 与上次记录的last_yaml_mod_time_比较
+ * 3. 如果时间戳不同，说明文件被修改，执行重载:
+ *    a. 调用system("rosparam load ...")将新配置加载到参数服务器
+ *    b. 更新last_yaml_mod_time_为最新时间戳
+ *    c. 输出日志通知
+ * 4. 下一帧的getParam()调用会自动获取参数服务器上的新值
+ *
+ * 注意: 此函数使用system()调用rosparam命令，这是ROS1中最可靠的
+ * yaml重载方式。替代方案是使用yaml-cpp直接解析文件，但需要
+ * 手动处理参数服务器的更新逻辑，更复杂。
+ */
+void ObstacleDetection::checkAndReloadYaml(const ros::TimerEvent& event)
+{
+    struct stat file_stat;
+    if (stat(yaml_file_path_.c_str(), &file_stat) != 0) {
+        // 文件不存在或无法访问，跳过检查
+        return;
+    }
+
+    // 比较文件修改时间
+    if (file_stat.st_mtime != last_yaml_mod_time_) {
+        // 文件被修改，重新加载到参数服务器
+        std::string cmd = "rosparam load " + yaml_file_path_ + " /obstacle_detection";
+        int ret = system(cmd.c_str());
+        if (ret == 0) {
+            ROS_INFO("YAML reload: file [%s] reloaded successfully", yaml_file_path_.c_str());
+        } else {
+            ROS_ERROR("YAML reload: failed to reload file [%s], system() returned %d", 
+                      yaml_file_path_.c_str(), ret);
+        }
+        // 更新时间戳(无论成功与否，避免反复重试失败的加载)
+        last_yaml_mod_time_ = file_stat.st_mtime;
+    }
+}
 
 geometry_msgs::Pose ObstacleDetection::transformTargetPoseToVelodyne(const geometry_msgs::PoseStamped& input_pose)
 {
