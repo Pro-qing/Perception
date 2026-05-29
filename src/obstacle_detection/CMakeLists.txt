@@ -52,25 +52,29 @@ include_directories(
 add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)  # 保持旧行为
 
 
+# ========== 辅助库: 不规则多边形滤波器 ==========
 add_library(IrregularPolygonFilter
   src/IrregularPolygonFilter.cpp
 )
-
 target_link_libraries(IrregularPolygonFilter
   ${catkin_LIBRARIES}
 )
 
+# ========== 可执行文件: 障碍物检测节点(拆分为多个模块源文件) ==========
 add_executable(obstacle_detection
-  src/obstacle_detection.cpp
+  src/obstacle_detection.cpp          # 主入口 + 构造函数 + 核心回调
+  src/pointcloud_preprocessing.cpp    # 点云预处理模块
+  src/target_region_detection.cpp     # 目标区域检测模块
+  src/state_callbacks.cpp             # 状态回调模块
+  src/visualization.cpp               # 可视化模块
 )
-
 target_link_libraries(obstacle_detection
   ${catkin_LIBRARIES}
   IrregularPolygonFilter
 )
 
 install(TARGETS
-  obstacle_detection  IrregularPolygonFilter
+  obstacle_detection IrregularPolygonFilter
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
