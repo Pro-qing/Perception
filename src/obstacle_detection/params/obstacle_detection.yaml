@@ -2,13 +2,38 @@
 # 障碍物检测节点配置文件
 # ============================================================
 # 该文件包含以下配置：
-#   1. 中距雷达外参标定参数
-#   2. 电梯检测区域边界框(在目标点局部坐标系下)
-#   3. 库位检测区域边界框(在目标点局部坐标系下)
-#   4. 车体轮廓多边形(用于过滤车辆自身的激光反射点)
-#   5. 库位外围聚类检测参数(Layer 2)
-#   6. 调试参数
+#   1. 基础参数(坐标系、topic、距离阈值等)
+#   2. 点云滤波参数(降采样、Z轴、ROI)
+#   3. 地面分割参数
+#   4. 欧几里得聚类参数(电梯场景)
+#   5. 中距雷达外参标定参数
+#   6. 电梯检测区域边界框(在目标点局部坐标系下)
+#   7. 库位检测区域边界框(在目标点局部坐标系下)
+#   8. 车体轮廓多边形(用于过滤车辆自身的激光反射点)
+#   9. 库位检测防误判参数(最小点数、滑动窗口、施密特触发器)
+#  10. 库位外围聚类检测参数(Layer 2)
+#  11. 调试参数
 # ============================================================
+
+# ---------- 基础参数配置 ----------
+target_frame: "velodyne"                # 目标坐标系，所有点云都会变换到此坐标系
+points_mid_topic: "/points_mid_calibration"  # 中距雷达点云topic
+distance_threshold: 0.4                 # 距离目标点小于此值时停止检测(米)
+
+# ---------- 点云滤波参数 ----------
+voxel_leaf_size: 0.0                    # 体素降采样大小(米)，0表示不降采样
+z_axis_min: -1.60                       # Z轴滤波最小值(米)
+z_axis_max: 0.50                        # Z轴滤波最大值(米)
+roi_radius: 10.0                        # ROI区域半径(米)
+use_roi_filter: true                    # 是否启用ROI滤波
+
+# ---------- 地面分割参数 ----------
+ground_threshold: 0.15                  # RANSAC地面分割距离阈值(米)
+
+# ---------- 欧几里得聚类参数(仅电梯场景使用) ----------
+cluster_tolerance: 0.15                 # 聚类容差(米)
+min_cluster_size: 5                     # 最小聚类点数
+max_cluster_size: 1000                  # 最大聚类点数
 
 # ---------- 中距雷达标定参数 ----------
 # 用于补偿中距雷达的安装偏差(外参标定)
@@ -44,7 +69,7 @@ carports_min_x: -0.7     # X轴最小值(米)
 carports_max_x: 0.9      # X轴最大值(米)
 carports_min_y: -0.60    # Y轴最小值(米)
 carports_max_y: 0.60     # Y轴最大值(米)
-carports_min_z: 0.00     # Z轴最小值(米)
+carports_min_z: 0.2     # Z轴最小值(米)
 carports_max_z: 1.00     # Z轴最大值(米)
 
 # ---------- 车体轮廓参数 ----------
@@ -68,6 +93,12 @@ car_rect:
 car_min_z: -1.90            # 车体Z轴最小值(米) - 底盘下方
 car_max_z: 0.50             # 车体Z轴最大值(米) - 车顶
 
+# ---------- 库位检测防误判参数 ----------
+min_region_points: 5                    # 区域内点数低于此值不判定为障碍物
+garage_history_size: 5                  # 滑动窗口大小(帧数)
+garage_confirm_threshold: 3             # 窗口内需有N帧检测到才确认
+garage_enable_distance: 10.0             # 库位检测启用距离(米)
+
 # ========== 库位外围聚类检测参数(Layer 2) ==========
 # 当大型障碍物完全占据库位入口，激光点落在库位框外时，
 # Layer 1(内部区域检测)无法检测到，此时触发Layer 2补充检测。
@@ -75,19 +106,19 @@ car_max_z: 0.50             # 车体Z轴最大值(米) - 车顶
 garage_enable_proximity_cluster: true    # 是否启用外围聚类检测
 garage_cluster_tolerance: 0.2           # 聚类容差(米)，同一物体的点间距阈值
 garage_cluster_min_points: 8            # 最小聚类点数，过滤散射噪声
-garage_cluster_max_points: 300          # 最大聚类点数，过滤墙壁等大结构
-garage_cluster_max_z_range: 1.0         # 聚类z范围上限(米)，过滤地面合并的巨型cluster
-garage_cluster_min_centroid_z: 0.05     # 聚类重心最低高度(米)，过滤残余地面
-garage_expand_margin_x: 0.5            # X方向扩展边界(米)，检测库位入口附近区域
-garage_expand_margin_y: 0.3            # Y方向扩展边界(米)
-garage_proximity_threshold: 0.3         # 聚类到库位框最大距离(米)，低于此值判定为邻近障碍物
+garage_cluster_max_points: 1000          # 最大聚类点数，过滤墙壁等大结构
+garage_cluster_max_z_range: 5.0         # 聚类z范围上限(米)，过滤地面合并的巨型cluster
+garage_cluster_min_centroid_z: -1.0     # 聚类重心最低高度(米)，过滤残余地面
+garage_expand_margin_x: 1.0            # X方向扩展边界(米)，检测库位入口附近区域
+garage_expand_margin_y: 0.5            # Y方向扩展边界(米)
+garage_proximity_threshold: 0.5         # 聚类到库位框最大距离(米)，低于此值判定为邻近障碍物
 
 # ========== 调试参数 ==========
 # garage_proximity_debug: 外围聚类检测调试日志
 #   true  → 输出每个cluster的详细过滤信息(点数、z范围、重心、距离等)
 #   false → 仅输出检测结果(默认)
 # log_level: ROS日志级别(DEBUG/INFO/WARN/ERROR/FATAL)
-garage_proximity_debug: false
+garage_proximity_debug: true
 
 # ========== 状态保持(施密特触发器)参数 ==========
 # garage_clear_threshold: 清除阈值，窗口内检测到噪声的帧数<=此值时才清除障碍物标志
@@ -95,4 +126,5 @@ garage_proximity_debug: false
 # 例: history_size=5, confirm=3, clear=1 → 确认需>=3帧，清除需<=1帧，中间2帧保持不变
 garage_clear_threshold: 1
 
-# log_level: "DEBUG"
+# ========== 日志级别 ==========
+log_level: "INFO"

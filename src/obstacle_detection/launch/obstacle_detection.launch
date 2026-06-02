@@ -4,8 +4,10 @@
   该节点用于电梯和库位场景下的障碍物检测，通过融合中距雷达和补盲雷达的点云数据，
   对目标区域进行异物检测，并通过位标志向下游系统报告检测结果。
 
+  所有运行时参数均从yaml配置文件加载，修改yaml后自动重载(最多1秒生效)。
+
   订阅的Topics:
-    - points_mid_topic (sensor_msgs/PointCloud2): 中距雷达点云
+    - points_mid_topic (sensor_msgs/PointCloud2): 中距雷达点云(默认/points_mid_calibration)
     - /fused_points_tip (sensor_msgs/PointCloud2): 补盲雷达点云
     - /keypoint_path (autoware_msgs/KeyPointArray): 导航关键点路径
     - /feedback_status (autoware_remove_msgs/State): 反馈状态
@@ -26,59 +28,9 @@
 <launch>
     <node pkg="obstacle_detection" type="obstacle_detection" 
           name="obstacle_detection" output="screen">
-        <!-- ========== 基础参数配置 ========== -->
-        <param name="target_frame" value="velodyne" />      <!-- 目标坐标系，所有点云都会变换到此坐标系 -->
-        <param name="points_mid_topic" value="/points_mid_calibration" />  <!-- 中距雷达点云topic -->
-        <param name="distance_threshold" value="0.4" />     <!-- 距离目标点小于此值时停止检测(米) -->
+        <!-- 加载yaml配置文件(包含所有运行时参数，支持修改后自动重载) -->
+        <!-- <rosparam file="$(find obstacle_detection)/params/obstacle_detection.yaml" command="load"/> -->
 
-        <!-- ========== 点云滤波参数 ========== -->
-        <param name="voxel_leaf_size" value="0.00" />       <!-- 体素降采样大小(米)，0表示不降采样 -->
-        <param name="z_axis_min" value="-1.60" />           <!-- Z轴滤波最小值(米) -->
-        <param name="z_axis_max" value="0.50" />            <!-- Z轴滤波最大值(米) -->
-        <param name="roi_radius" value="10.0" />            <!-- ROI区域半径(米) -->
-        <param name="use_roi_filter" value="true" />        <!-- 是否启用ROI滤波 -->
-        
-        <!-- ========== 地面分割参数 ========== -->
-        <param name="ground_threshold" value="0.15" />      <!-- RANSAC地面分割距离阈值(米) -->
-        
-        <!-- ========== 欧几里得聚类参数(仅电梯场景使用) ========== -->
-        <param name="cluster_tolerance" value="0.15" />     <!-- 聚类容差(米) -->
-        <param name="min_cluster_size" value="5" />         <!-- 最小聚类点数 -->
-        <param name="max_cluster_size" value="1000" />      <!-- 最大聚类点数 -->
-
-        <!-- ========== 库位检测防误判参数 ========== -->
-        <param name="min_region_points" value="5" />         <!--  区域内点数低于此值不判定为障碍物 -->
-        <param name="garage_history_size" value="5" />       <!--  滑动窗口大小(帧数) -->
-        <param name="garage_confirm_threshold" value="3" />  <!--  窗口内需有N帧检测到才确认 -->
-        <param name="garage_clear_threshold" value="1" />    <!--  窗口内需<=N帧检测到才清除(施密特触发器) -->
-        <param name="garage_enable_distance" value="6.0" />  <!--  库位检测启用距离(米) -->
-
-        <!-- ========== 库位外围聚类检测参数(Layer 2) ==========
-             当大型障碍物完全堵住库位入口，激光点落在库位框外时，
-             Layer 1无法检测到，Layer 2通过聚类mid360点云进行补充检测。
-             以下参数也可在yaml中配置，launch中的值会覆盖yaml中的值 -->
-        <param name="garage_enable_proximity_cluster" value="true" />  <!-- 是否启用 -->
-        <param name="garage_cluster_tolerance" value="0.2" />          <!-- 聚类容差(米) -->
-        <param name="garage_cluster_min_points" value="8" />           <!-- 最小聚类点数 -->
-        <param name="garage_cluster_max_points" value="300" />         <!-- 最大聚类点数 -->
-        <param name="garage_cluster_max_z_range" value="1.0" />        <!-- z范围上限(米) -->
-        <param name="garage_cluster_min_centroid_z" value="0.05" />    <!-- 重心最低高度(米) -->
-        <param name="garage_expand_margin_x" value="0.5" />            <!-- X扩展边界(米) -->
-        <param name="garage_expand_margin_y" value="0.3" />            <!-- Y扩展边界(米) -->
-        <param name="garage_proximity_threshold" value="0.3" />        <!-- 邻近距离阈值(米) -->
-        <!-- <param name="garage_proximity_debug" value="true" /> -->    <!-- 外围聚类调试日志(打开后输出每个cluster详情) -->
-
-        <!-- 加载yaml配置文件(包含标定参数、电梯/库位检测区域、车体轮廓等) -->
-        <rosparam file="$(find obstacle_detection)/params/obstacle_detection.yaml" command="load"/>
-
-        <!-- ========== YAML动态重载 ==========
-             yaml_file_path: 监控的yaml文件路径，文件被修改后自动重新加载到参数服务器
-             如果不指定，默认使用功能包下的 params/obstacle_detection.yaml
-             修改yaml文件后最多1秒内自动生效，无需重启节点 -->
-        <param name="yaml_file_path" value="$(find obstacle_detection)/params/obstacle_detection.yaml" />
-        
-        <!-- ========== 日志级别 ========== -->
-        <!-- <param name="log_level" value="DEBUG" /> -->    <!-- 调试时打开 -->
-        <param name="log_level" value="INFO" />
+        <rosparam file="$(env HOME)/perception/workspace/param/obstacle_detection.yaml" command="load"/>
     </node>
 </launch>

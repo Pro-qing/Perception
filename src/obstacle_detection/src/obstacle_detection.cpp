@@ -225,6 +225,10 @@ void ObstacleDetection::syncCloudCallback(const sensor_msgs::PointCloud2::ConstP
             garage_detected = checkGarageProximityCluster(mid_result.filtered_cloud, fused_msg.header);
         }
 
+        // 将Layer 1+2综合结果回写，使目标区域marker颜色正确反映最终检测结果
+        target_region_has_noise_ = garage_detected;
+        publishTargetRegionMarker(fused_msg.header);
+
         // 滑动窗口防抖(对综合结果) + 迟滞清除机制
         garage_detection_history_.push_back(garage_detected);
         while (static_cast<int>(garage_detection_history_.size()) > garage_history_size_) {
