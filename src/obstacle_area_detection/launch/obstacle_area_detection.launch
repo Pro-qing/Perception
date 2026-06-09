@@ -1,0 +1,35 @@
+<!--
+  库区障碍物检测节点启动文件
+
+  该节点用于库位场景下的障碍物检测，仅使用mid360雷达的点云数据，
+  对多个目标库位区域进行异物检测，并通过位标志向下游系统报告检测结果。
+
+  所有运行时参数均从yaml配置文件加载，修改yaml后自动重载(最多1秒生效)。
+
+  订阅的Topics:
+    - points_mid_topic (sensor_msgs/PointCloud2): mid360点云(默认/points_mid_calibration)
+    - /keypoint_path (autoware_msgs/KeyPointArray): 导航关键点路径
+    - /current_pose (geometry_msgs/PoseStamped): 当前车辆位姿
+
+  发布的Topics:
+    - /obstacle_area_detection (std_msgs/UInt32): 障碍物检测状态(位标志, 每个库位占一个bit)
+    - /obstacle_area_markers (visualization_msgs/MarkerArray): 库位可视化标记
+    - /area_preprocessed_points (sensor_msgs/PointCloud2): 预处理后的点云
+    - /area_ground_points (sensor_msgs/PointCloud2): 地面点云
+    - /area_obstacle_points (sensor_msgs/PointCloud2): 障碍物点云
+    - /area_calibration_points (sensor_msgs/PointCloud2): 标定后点云
+    - /area_target_region_points (sensor_msgs/PointCloud2): 目标区域内点云
+    - /area_proximity_cluster_points (sensor_msgs/PointCloud2): 外围聚类点云
+    - /area_proximity_markers (visualization_msgs/MarkerArray): 外围聚类可视化标记
+-->
+<launch>
+    <arg name="yaml_file_path" default="$(env HOME)/perception/workspace/param/obstacle_area_detection.yaml"/>
+
+    <node pkg="obstacle_area_detection" type="obstacle_area_detection"
+          name="obstacle_area_detection" output="screen">
+        <!-- 加载yaml配置文件(包含所有运行时参数，支持修改后自动重载) -->
+        <rosparam file="$(arg yaml_file_path)" command="load"/>
+        <!-- 传递yaml文件绝对路径给节点，用于动态重载监控 -->
+        <param name="yaml_file_path" type="str" value="$(arg yaml_file_path)"/>
+    </node>
+</launch>
