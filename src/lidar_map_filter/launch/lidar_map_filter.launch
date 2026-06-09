@@ -1,0 +1,16 @@
+<!--
+  地图点云背景过滤器启动文件
+
+  功能: 使用静态地图 PCD 文件的 KD-Tree 过滤当前帧中的静态背景
+  订阅: /lidar_no_ground (sensor_msgs/PointCloud2): 去地面后的点云
+  发布: /lidar_map_filtered (sensor_msgs/PointCloud2): 过滤后的障碍物点云
+        /lidar_map_background (sensor_msgs/PointCloud2): 被滤除的背景点云(调试)
+        /lidar_local_map (sensor_msgs/PointCloud2): 局部地图点云(调试)
+-->
+<launch>
+    <arg name="param_file" default="/home/getq/perception/workspace/param/map_filter.yaml" />
+
+    <node pkg="lidar_map_filter" type="lidar_map_filter_node" name="lidar_map_filter_node" output="screen">
+        <rosparam command="load" file="$(arg param_file)" />
+    </node>
+</launch>

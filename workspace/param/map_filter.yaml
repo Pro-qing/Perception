@@ -1,0 +1,38 @@
+# ============================================================
+# 地图点云背景过滤器配置文件
+# ============================================================
+# 功能: 使用静态地图点云 KD-Tree 过滤当前帧中的静态背景(墙壁/树木等)
+#
+# 两种独立模式:
+#   1. 地图构建模式 (use_local_map):
+#      - true:  局部地图模式, 每帧裁剪地图到 velodyne 周围指定范围
+#      - false: 全地图模式, 使用完整地图构建 KD-Tree (只构建一次)
+#
+#   2. 搜索模式 (search_mode):
+#      - "nearest": 最近邻搜索, 对每个点查找地图中最近的1个点
+#      - "radius":  半径搜索, 对每个点在指定半径内查找地图点
+# ============================================================
+
+# ---------- 输入输出话题 ----------
+input_topic: "/lidar_no_ground"          # 输入: 去地面后的点云
+output_topic: "/lidar_map_filtered"      # 输出: 过滤后的障碍物点云
+background_topic: "/lidar_map_background" # 调试: 被滤除的背景点云
+local_map_topic: "/lidar_local_map"      # 调试: 局部地图点云
+
+# ---------- 地图文件 ----------
+map_pcd_path: "/home/getq/perception/workspace/map/map.pcd"
+
+# ---------- 搜索模式 ----------
+# "nearest": 最近邻搜索 - 距离 < threshold → 背景
+# "radius":  半径搜索   - 半径内有地图点 → 背景
+search_mode: "nearest"
+distance_threshold: 0.2                  # 距离阈值/搜索半径(米)
+
+# ---------- 地图构建模式 ----------
+# true:  局部地图模式 (每帧裁剪, 适合大地图 + 实时性要求高)
+# false: 全地图模式   (KD-Tree 只构建一次, 适合小地图)
+use_local_map: true
+local_map_x_front: 5.0                   # 前方范围(米)
+local_map_x_rear: 3.0                    # 后方范围(米)
+local_map_y_left: 2.5                    # 左侧范围(米)
+local_map_y_right: 2.5                   # 右侧范围(米)

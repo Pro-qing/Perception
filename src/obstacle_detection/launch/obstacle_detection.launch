@@ -26,11 +26,13 @@
     - /obstacle_detection_markers (visualization_msgs/MarkerArray): 可视化标记
 -->
 <launch>
+    <arg name="yaml_file_path" default="$(env HOME)/perception/workspace/param/obstacle_detection.yaml"/>
+
     <node pkg="obstacle_detection" type="obstacle_detection" 
           name="obstacle_detection" output="screen">
         <!-- 加载yaml配置文件(包含所有运行时参数，支持修改后自动重载) -->
-        <!-- <rosparam file="$(find obstacle_detection)/params/obstacle_detection.yaml" command="load"/> -->
-
-        <rosparam file="$(env HOME)/perception/workspace/param/obstacle_detection.yaml" command="load"/>
+        <rosparam file="$(arg yaml_file_path)" command="load"/>
+        <!-- 传递yaml文件绝对路径给节点，用于动态重载监控 -->
+        <param name="yaml_file_path" type="str" value="$(arg yaml_file_path)"/>
     </node>
 </launch>
