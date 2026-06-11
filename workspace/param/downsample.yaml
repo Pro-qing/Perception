@@ -6,6 +6,9 @@ input_topic: "/points_raw"
 # 输出话题 (降采样后的点云)
 output_topic: "/points_downsampled"
 
+# 车身 Marker 定时发布频率 (Hz)， 设置为 0 表示不发布
+body_marker_timer_rate: 1.0
+
 # VoxelGrid 体素滤波参数
 voxel_grid:
   # 体素大小 (米) - 值越大降采样越激进，点云越稀疏
