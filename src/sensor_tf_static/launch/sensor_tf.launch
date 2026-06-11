@@ -1,0 +1,8 @@
+<launch>
+    <arg name="calibration_file" default="/home/getq/work/workspace/config/lidar_calibration.yaml" />
+    <node pkg="sensor_tf_static" type="sensor_tf_static_node" name="sensor_tf_static_node" output="screen">
+        <param name="calibration_file" value="$(arg calibration_file)">
+    </node>
+
+    
+</launch>
