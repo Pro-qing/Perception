@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<!--
+  tip_obstacle.launch
+  叉车货叉区域单线激光雷达避障节点启动文件
+
+  功能:
+    - 启动 tip_obstacle_node 节点
+    - 配置话题名称、坐标系、YAML 配置文件路径等参数
+    - 支持单叉臂/双叉臂模式切换
+-->
+<launch>
+    <!-- ==================== 话题与坐标系参数 ==================== -->
+
+    <!-- 叉臂类型: 1=单叉臂 (仅订阅左雷达), 0=双叉臂 (左右雷达同步订阅) -->
+    <arg name="tip_type" default="0" />
+
+    <!-- TF 坐标系名称 -->
+    <arg name="parent_frame" default="velodyne" />          <!-- 父坐标系 (主雷达) -->
+    <arg name="left_child_frame" default="bleft_laser" />   <!-- 左雷达子坐标系 -->
+    <arg name="right_child_frame" default="bright_laser" /> <!-- 右雷达子坐标系 -->
+    <arg name="left_scan_frame" default="scan_bleft_link" />   <!-- 左雷达扫描坐标系 (用于可视区域 Marker) -->
+    <arg name="right_scan_frame" default="scan_bright_link" /> <!-- 右雷达扫描坐标系 (用于可视区域 Marker) -->
+
+    <!-- 输出话题名称 (可通过 launch 参数自定义) -->
+    <arg name="out_fused_points_cloud" default="fused_points_tip" />   <!-- 融合点云话题 -->
+    <arg name="out_bleft_points_cloud" default="bleft_points_tip" />   <!-- 左雷达点云话题 -->
+    <arg name="out_bright_points_cloud" default="bright_points_tip" /> <!-- 右雷达点云话题 -->
+
+    <!-- ==================== 三个核心配置文件路径 ==================== -->
+
+    <!-- 雷达外参标定文件 (定义左右雷达相对于 velodyne 的 6DOF 安装位姿) -->
+    <arg name="yaml_path_tf" default="/home/autoware/work/workspace/param/lidar_calibration.yaml" />
+
+    <!-- 库位几何参数文件 (定义库位走廊的 AABB 包围盒尺寸) -->
+    <arg name="yaml_path_carport" default="/home/autoware/work/workspace/config/perception/obstacle_detection.yaml" />
+
+    <!-- 全局策略配置文件 (超时参数、运动阈值、过滤参数、可视化参数等) -->
+    <arg name="yaml_path_config" default="/home/autoware/work/workspace/config/perception/tip_obstacle.yaml" /> 
+
+    <!-- 调试模式: true 时绕过所有逻辑过滤，直接发布原始点云 -->
+    <arg name="debug" default="false" />
+
+    <!-- ==================== 节点启动 ==================== -->
+    <node pkg="tip_obstacle" name="tip_obstacle_node" type="tip_obstacle_node" output="screen" >
+        <!-- 叉臂类型与坐标系 -->
+        <param name="tip_type" value="$(arg tip_type)" />
+        <param name="parent_frame" value="$(arg parent_frame)" />
+        <param name="left_child_frame" value="$(arg left_child_frame)" />
+        <param name="right_child_frame" value="$(arg right_child_frame)" />
+        <param name="left_scan_frame" value="$(arg left_scan_frame)" />
+        <param name="right_scan_frame" value="$(arg right_scan_frame)" />
+        
+        <!-- 输出话题名称 -->
+        <param name="out_fused_points_cloud" value="$(arg out_fused_points_cloud)" />
+        <param name="out_bleft_points_cloud" value="$(arg out_bleft_points_cloud)" />
+        <param name="out_bright_points_cloud" value="$(arg out_bright_points_cloud)" />
+       
+        <!-- 三个 YAML 配置文件路径 (支持运行时热加载) -->
+        <param name="tf_yaml_path" value="$(arg yaml_path_tf)" />
+        <param name="carport_yaml_path" value="$(arg yaml_path_carport)" />
+        <param name="config_yaml_path" value="$(arg yaml_path_config)" />
+
+        <!-- 调试模式开关 -->
+        <param name="debug" value="$(arg debug)" />
+    </node>
+</launch>
