@@ -63,8 +63,6 @@ public:
         pub_no_charge_ = nh_.advertise<sensor_msgs::PointCloud2>(output_topic_, 10);
         marker_pub_    = nh_.advertise<visualization_msgs::Marker>("/charge_area_marker", 1, true);
 
-        pub_metrics_ = nh_.advertise<lidar_pipeline_monitor::PipelineMetrics>("/pipeline/metrics", 100);
-
         // ---- 订阅者 ----
         sub_keypoint_ = nh_.subscribe(keypoint_topic_, 10, &LidarNoChargeNode::keyPointCallback, this);
         sub_control_  = nh_.subscribe(control_topic_,  10, &LidarNoChargeNode::ctrolCallback,   this);
@@ -89,8 +87,6 @@ private:
     // 发布者
     ros::Publisher pub_no_charge_;
     ros::Publisher marker_pub_;
-
-    ros::Publisher pub_metrics_; 
 
     // 订阅者
     ros::Subscriber sub_keypoint_;
@@ -274,8 +270,6 @@ private:
     // ============================================================
     void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg) {
 
-        ros::Time cb_start = ros::Time::now(); // 【新增头】
-
         // 没有订阅者时不处理
         if (pub_no_charge_.getNumSubscribers() == 0) {
             return;
@@ -357,16 +351,6 @@ private:
         output_msg.header.stamp    = msg->header.stamp;
         output_msg.header.frame_id = msg->header.frame_id;
         pub_no_charge_.publish(output_msg);
-
-        // 【新增尾】
-        ros::Time cb_end = ros::Time::now();
-        lidar_pipeline_monitor::PipelineMetrics metric;
-        metric.header.stamp = msg->header.stamp; 
-        metric.node_name = "4_no_charge";
-        metric.transmission_delay = (cb_start - msg->header.stamp).toSec() * 1000.0;
-        metric.processing_time = (cb_end - cb_start).toSec() * 1000.0;
-        metric.total_latency = (cb_end - msg->header.stamp).toSec() * 1000.0;
-        pub_metrics_.publish(metric);
     }
 };
 
