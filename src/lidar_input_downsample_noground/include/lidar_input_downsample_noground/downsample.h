@@ -48,6 +48,9 @@ private:
     double marker_r_, marker_g_, marker_b_, marker_a_;
     ros::Publisher pub_marker_array_;
 
+    ros::WallTimer timer_marker_;
+    double marker_timer_rate_;
+
     // CropBox 参数
     bool crop_box_enable_;
     double crop_min_x_, crop_max_x_;
@@ -61,6 +64,7 @@ private:
 
     void loadBodyPolygon();
     bool isPointInsidePolygon(double px, double py) const;
+    void timerCallback(const ros::WallTimerEvent& event);
     void publishBodyMarker();
 };
 
