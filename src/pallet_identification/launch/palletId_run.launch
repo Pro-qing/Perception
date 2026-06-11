@@ -1,0 +1,16 @@
+<launch>
+    <!-- 核心：配置文件的路径 -->
+<!--     
+    <arg name="yaml_path_palletld_run" default="$(env HOME)/work/workspace/param/palletld_run.yaml" />
+     -->
+    
+    <arg name="yaml_path_palletld_run" default="/home/ros_ws/workspace/config/perception/palletld_run.yaml" />
+
+    <node pkg="pallet_identification" type="pallet_identification" name="pallet_identification" output="screen">
+        <param name="config_file" value="$(arg yaml_path_palletld_run)" />
+    </node>   
+
+    <node pkg="pallet_identification" type="safe_tip_lift" name="safe_tip_lift" output="screen">
+        <param name="config_file" value="$(arg yaml_path_palletld_run)" />
+    </node>  
+</launch>

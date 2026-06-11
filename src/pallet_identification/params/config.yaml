@@ -1,0 +1,6 @@
+base_def_safelift: 46
+base_pallet_safelift: 20
+max_angle: 1.45          # 最大角度（π/2弧度，约90度）
+min_adjustment: 0.80      # 角度最大时的最小调整系数
+max_adjustment: 1.0      # 角度为0时的最大调整系数
+smoothness_factor: 2.5   # 平滑因子（用于指数方法）
