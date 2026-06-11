@@ -1,0 +1,10 @@
+<launch>
+    <node pkg="safe_obstacle" name="safe_obstacle_node" type="safe_obstacle_node" output="screen">
+        <!-- 加载外部指定的 YAML 配置文件 -->
+        <rosparam file="/home/autoware/work/workspace/config/perception/safe_obstacle.yaml" command="load"/>
+        <!-- <rosparam file="$(find safe_obstacle)/params/param.yaml" command="load"/> -->
+        
+        <!-- 调试开关：开启后会在终端显示详细的处理日志 -->
+        <param name="debug_mode" value="true" />
+    </node>
+</launch>
