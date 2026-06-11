@@ -40,9 +40,24 @@ DownsampleProcessor::DownsampleProcessor(ros::NodeHandle& nh, ros::NodeHandle& p
     pnh_.param<double>("height_filter/min_height", min_height_, -2.0);
     pnh_.param<double>("height_filter/max_height", max_height_, 2.0);
 
+    // if (publish_marker_ && body_filter_enable_) {
+    //     pub_marker_array_ = nh_.advertise<visualization_msgs::MarkerArray>(marker_topic_, 1, true);
+    //     publishBodyMarker();
+    // }
+
+    pnh_.param<double>("body_marker_timer_rate", marker_timer_rate_, 1.0);
+
     if (publish_marker_ && body_filter_enable_) {
         pub_marker_array_ = nh_.advertise<visualization_msgs::MarkerArray>(marker_topic_, 1, true);
-        publishBodyMarker();
+        if (marker_timer_rate_ > 0.0) {
+            timer_marker_ = nh_.createWallTimer(
+                ros::WallDuration(1.0 / marker_timer_rate_),
+                &DownsampleProcessor::timerCallback,
+                this
+            );
+            ROS_INFO("  body marker timer: %.1f Hz", marker_timer_rate_);
+        }
+        
     }
 
     ROS_INFO("\033[1;32m[Downsample] Processor initialized.\033[0m");
@@ -180,6 +195,11 @@ bool DownsampleProcessor::isPointInsidePolygon(double px, double py) const {
         }
     }
     return inside;
+}
+
+// ============== 定时器回调，周期性发布车身 Marker ==============
+void DownsampleProcessor::timerCallback(const ros::WallTimerEvent& event) {
+    publishBodyMarker();
 }
 
 // ============== 发布车身 MarkerArray ==============
